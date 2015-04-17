@@ -1,6 +1,7 @@
+#!/usr/bin/python
 import StringIO
 import pickle
-
+import sys
 import cloudpickle
 import gevent
 import zerorpc
@@ -22,10 +23,10 @@ class Worker(object):
         input = StringIO.StringIO(objstr)
         unpickler = pickle.Unpickler(input)
         f = unpickler.load()
-        return str(f.collect())
+        return (str(f.collect()) , str(f.count()))
 
-        return "ACK"
+
 
 s = zerorpc.Server(Worker())
-s.bind("tcp://0.0.0.0:4242")
+s.bind("tcp://0.0.0.0:"+ sys.argv[1])
 s.run()

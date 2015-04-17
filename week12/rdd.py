@@ -1,28 +1,31 @@
-
+#!/usr/bin/python
 class RDD(object):
 
     def __init__(self):
         pass
 
-    def getPartition(self):
+    def partitions(self):
         pass
 
-    def getIterator(self,partition):
+    def prefferedLocations(self,p):
         pass
 
-    def getPreferredLocations(self,partition):
+    def dependencies(self):
         pass
 
-    def getDependencies(self):
+    def iterator(self):
         pass
 
-    def getPartitioner(self):
+    def partitioner(self):
         pass
+
+    def set_persist(self):
+        self.persist = True
 
     def collect(self):
         elements = []
-        for i in self.getIterator(1):
-            elements.append(i)
+        for elem in self.iterator():
+            elements.append(elem)
         return elements
 
     def count(self):
@@ -31,54 +34,77 @@ class RDD(object):
 class TextFile(RDD):
 
     def __init__(self, filename):
-        #This is a single file implementation only
         self.filename = filename
-        self.lines = []
+        self.data = None
         self.index = 0
 
-
-    def getPartition(self):
-        f = open(self.filename,"r")
-        self.lines = f.readlines()
-        f.close()
-        return self.filename
-
-    def getIterator(self,partition):
-        self.getPartition()
-        for i in self.lines:
-            yield i
-
+    def get(self):
+        if not self.data:
+            f = open(self.filename)
+            self.data = f.readlines()
+            f.close()
+    
+    def iterator(self):
+        self.get()
+        for line in self.data:
+            yield line
 
 class Map(RDD):
-
 
     def __init__(self, parent, func):
         self.parent = parent
         self.func = func
+        self.data = []
+        self.persist = False
 
 
-    def getIterator(self,partition):
-        for i in self.parent.getIterator(partition):
-            yield self.func(i)
+    def iterator(self):
+        if (len(self.data) == 0 or not self.persist):
+            for elem in self.parent.iterator():
+                _ = self.func(elem)
+                if self.persist:
+                    self.data.append(_)
+                yield _
+        else:
+            for _ in self.data:
+                yield _
 
 class Filter(RDD):
     
     def __init__(self, parent, func):
         self.parent = parent
         self.func = func
+        self.persist = False
+        self.data = []
 
-    def getIterator(self,partition):
-        for i in self.parent.getIterator(partition):
-            if self.func(i):
-                yield i
+    def iterator(self):
+        if (len(self.data) == 0 or not self.persist):
+            for _ in self.parent.iterator():
+                if self.func(_) :
+                    if self.persist:
+                        self.data.append(_)
+                    yield _
+        else:
+            for _ in self.data:
+                yield _
+
+class Union(RDD):
+    def __init__(self):
+        pass
 
 
 if __name__ == '__main__':
 
-    r = TextFile('myfile')
+    r = TextFile('./Data/myfile')
     m = Map(r, lambda s: s.split())
+    m.set_persist()
     f = Filter(m, lambda a: int(a[1]) > 2)
-    print r.collect()
+    print f.collect()
+
+    f = Filter(m, lambda a: int(a[1]) > 2)
+    print f.count()
+
+
 
 
 
