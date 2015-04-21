@@ -49,6 +49,33 @@ class TextFile(RDD):
         for line in self.data:
             yield line
 
+class FlatMap(RDD):
+
+    def __init__(self, parent, func):
+        self.parent = parent
+        self.func = func
+        self.data = []
+        self.persist = False
+
+    def iterator(self):
+        if (len(self.data) == 0 or not self.persist):
+            for elem in self.parent.iterator():
+                _ = self.func(elem)
+                if type(_) == list:
+                    if self.persist:
+                        self.data.extend(_)
+                    for __ in _ :
+                        yield __
+                else:
+                    if self.persist:
+                        self.data.append(_)
+                    yield _
+        else:
+            for _ in self.data:
+                yield _
+
+
+
 class Map(RDD):
 
     def __init__(self, parent, func):

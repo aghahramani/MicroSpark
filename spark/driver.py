@@ -16,11 +16,12 @@ for file in files:
     r = TextFile(file)
     m = Map(r, lambda s: s.split())
     m.set_persist()
-    f = Filter(m, lambda a: int(a[1]) > 2)
+    fm = FlatMap(m , lambda a : a)
+    f = Filter(fm, lambda a: type(a) == str)
 
     output = StringIO.StringIO()
     pickler = cloudpickle.CloudPickler(output)
-    pickler.dump(f)
+    pickler.dump(fm)
     objstr = output.getvalue()
 
     c = zerorpc.Client()

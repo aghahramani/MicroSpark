@@ -23,7 +23,7 @@ class Worker(object):
         input = StringIO.StringIO(objstr)
         unpickler = pickle.Unpickler(input)
         f = unpickler.load()
-        return (str(f.collect()) , str(f.count()))
+        return str(f.collect())
 
 
 
