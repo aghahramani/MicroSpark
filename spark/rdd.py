@@ -97,7 +97,7 @@ class GroupByKey(RDD):
                 self.data[elem[0]] = [elem[1]]
             else:
                 self.data[elem[0]].append(elem[1])
-            yield elem
+            #yield elem
 
         for i in self.fetch_data():
             yield i
@@ -105,6 +105,7 @@ class GroupByKey(RDD):
 
 
     def fetch_data(self):
+        shared_data = {}
         if self.c == None:
             self.c = zerorpc.Client()
         temp_partitions = []
@@ -114,19 +115,26 @@ class GroupByKey(RDD):
         fetched_data = []
         while True:
             gevent.sleep(0.01)
-            count = 5
-            for i in temp_partitions:
-                if i[1] == True : count -=1
+
+            for i_index , i in enumerate(temp_partitions):
                 if i[1] == False:
                     self.get_connection(i[0])
                     res = self.c.get_data(self.get_id())
-                    if res != None :
-                        i[1] = True
-                        fetched_data.extend(res)
-            if count == 0 :
+                    if res != None  :
+                        temp_partitions[i_index][1] = True
+                        if res != 'No Partition':
+                            fetched_data.extend(res)
+            count = 0
+            for i in temp_partitions:
+                if i[1] == True:
+                    count+=1
+            if count == len(temp_partitions) :
                 break
         for i in  fetched_data:
             yield i
+        for i in self.data :
+            if hash(i)%5 + 4242 == self.get_id():
+                yield [i , self.data[i]]
 
 
 
