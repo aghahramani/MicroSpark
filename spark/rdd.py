@@ -23,7 +23,16 @@ class RDD(object):
     def get_partitions(self):
         return self.parent.get_partitions()
 
+    def wide_dependency_get_partitions(self, parent_list):
 
+        parent_dependencies = []
+        for parent in parent_list:
+            parent_dependencies += parent.get_partitions()
+
+        return parent_dependencies
+
+    def narrow_dependency_get_partitions(self):
+        return self.parent.get_partitions()
 
     def partitions(self):
         pass
