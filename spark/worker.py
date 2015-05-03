@@ -28,17 +28,23 @@ class Worker(object):
         self.f.set_id(sys.argv[1])
         self.f.set_id_range(int(sys.argv[2]),int(sys.argv[3])+1)
         self.hash_range = int(sys.argv[3])+1 - int(sys.argv[2])
-        return str(self.f.collect())
+        return self.f.collect()
 
 
-    def get_data(self,port,hashfunc = lambda a : hash(a)%5 + 4242):
+    def get_data(self,port,height,hash_func,fetch_all = False):
+        input = StringIO.StringIO(hash_func)
+        unpickler = pickle.Unpickler(input)
+        hash_func= unpickler.load()
         temp = []
+
         if self.f :
-            for i in self.f.get_data() :
+            for i in self.f.get_data(height) :
                 if i  == None :
                     continue
-                #print port , (hash(i)%5) , sys.argv[2]
-                if hashfunc(i[0]) == port:
+                if not fetch_all:
+                    if hash_func(i[0]) == port:
+                        temp.append(i)
+                else:
                     temp.append(i)
         return temp
 

@@ -1,7 +1,13 @@
 import zerorpc
 import gevent
+import numpy.random as rand
+import StringIO
+import cloudpickle
+import numpy as np
 #!/usr/bin/python
 class RDD(object):
+
+    wd = []
 
     def __init__(self):
         self.id = None
@@ -75,32 +81,43 @@ class RDD(object):
         return elements
 
     def wide_iter(self):
-        while self.data == None or self.data == 'calculating':
+        while  self.data == None or self.data == 'calculating':
+            gevent.sleep(0.000001)
             yield None
         for i in self.data:
-            yield [i , self.data[i]]
+            yield i
 
 
     #def collect(self):
         #gevent.spawn(self.g_collect())
 
 
-    def fetch_data(self , hashfunc = lambda a : hash(a)%5 + 4242):
+    def serialize(self,obj):
+        output = StringIO.StringIO()
+        pickler = cloudpickle.CloudPickler(output)
+        pickler.dump(obj)
+        return output.getvalue()
+
+    def fetch_data(self , hashfunc = lambda a : hash(a)%6 + 4242, fetch_all = False):
+
         if self.data_wide == None:
             self.data_wide = 'setting'
             if self.c == None:
                 self.c = zerorpc.Client()
+
             temp_partitions = []
             for i in self.get_partitions():
                 if i != self.get_id():
                     temp_partitions.append([i,False])
+
             fetched_data = []
             while True:
                 gevent.sleep(0.01)
                 for i_index , i in enumerate(temp_partitions):
                     if i[1] == False:
                         self.get_connection(i[0])
-                        res = self.c.get_data(self.get_id())
+                        ser_hash = self.serialize(hashfunc)
+                        res = self.c.get_data(self.get_id(),self.height,ser_hash,fetch_all)
                         temp_partitions[i_index][1] = True
                         fetched_data.extend(res)
                 count = 0
@@ -109,31 +126,89 @@ class RDD(object):
                         count+=1
                 if count == len(temp_partitions) :
                     for i in self.data :
-                        if hashfunc(i) == self.get_id():
-                            fetched_data.append([i,self.data[i]])
+                        if not fetch_all:
+                            if hashfunc(i[0]) == self.get_id():
+                                fetched_data.append(i)
+                        else:
+                            fetched_data.append(i)
                     self.data_wide = fetched_data
                     break
+
 
     def calculate_narrow(self):
         if self.data == None:
             self.data = 'calculating'
-            temp_data = {} # Used for atomic rename
-
+            temp_data = []
             for elem in self.parent.iterator():
-                if elem[0] not in temp_data :
-                    temp_data[elem[0]] = [elem[1]]
-                else:
-                    temp_data[elem[0]].append(elem[1])
+                temp_data.append(elem)
             self.data = temp_data
 
-    def get_data(self):
-        if self.wide :
+
+
+
+
+    def get_data(self,height):
+        if self.wide and self.height == height:
             return self.wide_iter()
         else:
-            return self.parent.get_data()
+            return self.parent.get_data(height)
 
     def count(self):
         return len(self.collect())
+
+
+
+class Sample(RDD):
+
+    def __init__(self,parent , size = 10):
+        self.parent = parent
+        self.data = None
+        self.wide = False
+        self.size = size
+        self.sample_data = None
+        self.height = 0
+
+    def iterator(self):
+        RDD.wd.append(self.wide)
+        self.height = len(RDD.wd)
+        self.calculate_narrow()
+        if len(self.data) > 0 :
+            indexes = rand.choice(range(len(self.data)),self.size if self.size < len(self.data) else len(self.data)
+                ,replace = False)
+            self.sample_data = [self.data[i] for i in indexes]
+            for i in self.sample_data:
+                yield  i
+        else:
+            yield []
+
+class Sort(RDD):
+
+    def __init__(self,parent,reverse = False):# we have to use parent for dependencies which we are not !!
+        self.parent = parent
+        self.data = None
+        self.c = None
+        self.wide = True
+        self.data_wide = None
+        self.height = 0
+
+
+
+    def iterator(self):
+        RDD.wd.append(self.wide)
+        self.height = len(RDD.wd)
+        if self.data_wide == None :
+            s_sample = Sample(self.parent,size = 3)
+            self.data = s_sample.collect()
+            self.fetch_data(fetch_all=True)
+
+        for i in self.data_wide:
+            yield i
+
+            #self.fetch_data(fetch_all=True)
+
+
+
+
 
 
 class GroupByKey(RDD):
@@ -144,22 +219,28 @@ class GroupByKey(RDD):
         self.c = None
         self.wide = True
         self.data_wide = None
-        pass
+        self.height = 0
 
     def iterator(self):
-        self.calculate_narrow()
-        self.fetch_data()
-        temp_dict = {}
+        RDD.wd.append(self.wide)
+        self.height = len(RDD.wd)
+        if self.data_wide == None:
+            self.calculate_narrow()
+            self.fetch_data()
+            temp_dict = {}
+
+            for i in self.data_wide :
+                if i[0] not in temp_dict:
+                    temp_dict[i[0]] = []
+                temp_dict[i[0]].extend(i[1])
+            temp_data_wide = []
+            for k,v in temp_dict.iteritems():
+                temp_data_wide.append([k,v])
+            self.data_wide = temp_data_wide
         for i in self.data_wide :
-            if i[0] not in temp_dict:
-                temp_dict[i[0]] = []
-            temp_dict[i[0]].extend(i[1])
-        temp_data_wide = []
-        for k,v in temp_dict.iteritems():
-            temp_data_wide.append([k,v])
-        self.data_wide = temp_data_wide
-        for i in self.data_wide :
-            yield i
+            if len (i) > 0  :
+                yield i
+
 
 
 
@@ -174,6 +255,7 @@ class TextFile(RDD):
         self.data = None
         self.index = 0
         self.wide = False
+        self.height = 0
 
     def get_id(self):
         return super(TextFile,self).cur_id()
@@ -201,6 +283,8 @@ class TextFile(RDD):
             f.close()
     
     def iterator(self):
+        RDD.wd.append(self.wide)
+        self.height = len(RDD.wd)
         self.get()
         for line in self.data:
             yield line
@@ -213,10 +297,13 @@ class FlatMap(RDD):
         self.data = []
         self.persist = False
         self.wide = False
+        self.height = 0
 
 
 
     def iterator(self):
+        RDD.wd.append(self.wide)
+        self.height = len(RDD.wd)
         if (len(self.data) == 0 or not self.persist):
             for elem in self.parent.iterator():
                 if type(elem) == list:
@@ -242,8 +329,11 @@ class Union(RDD):
         self.data = []
         self.persist = False
         self.wide = False
+        self.height = 0
 
     def iterator(self):
+        RDD.wd.append(self.wide)
+        self.height = len(RDD.wd)
         if (len(self.data) == 0 or not self.persist):
             for elem in self.parent1.iterator():
                 if self.persist:
@@ -268,9 +358,12 @@ class Map(RDD):
         self.data = []
         self.persist = False
         self.wide = False
+        self.height = 0
 
 
     def iterator(self):
+        RDD.wd.append(self.wide)
+        self.height = len(RDD.wd)
         if (len(self.data) == 0 or not self.persist):
             for elem in self.parent.iterator():
                 _ = self.func(elem)
@@ -289,8 +382,11 @@ class Filter(RDD):
         self.persist = False
         self.wide = False
         self.data = []
+        self.height = 0
 
     def iterator(self):
+        RDD.wd.append(self.wide)
+        self.height = len(RDD.wd)
         if (len(self.data) == 0 or not self.persist):
             for _ in self.parent.iterator():
                 if self.func(_) :

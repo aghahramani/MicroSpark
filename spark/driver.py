@@ -29,12 +29,17 @@ if __name__ == '__main__':
         m.set_persist()
         fm = FlatMap(m , lambda a : a)
         mfm = Map(fm , lambda a : [a , '1'])
-        #f = Filter(fm, lambda a: type(a) == str)
+        #
         k = GroupByKey(mfm)
-        p = Map(k , lambda s : [s[0] , sum(map(int,s[1]))])
+
+        p = Map(k , lambda s : [s[0] , [sum(map(int,s[1]))]])
+        #fp = FlatMap(p,lambda a : a)
+        f = Filter(p, lambda a: a[1]>2)
+        f_sample = Sample(f,size=3)
+        f_sort = GroupByKey(p)
         output = StringIO.StringIO()
         pickler = cloudpickle.CloudPickler(output)
-        pickler.dump(p)
+        pickler.dump(f_sort)
         objstr = output.getvalue()
         lis.append(gevent.spawn(start_job,count,objstr))
         count+=1
