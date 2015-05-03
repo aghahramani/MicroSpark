@@ -74,18 +74,63 @@ class RDD(object):
             elements.append(elem)
         return elements
 
+    def wide_iter(self):
+        while self.data == None or self.data == 'calculating':
+            yield None
+        for i in self.data:
+            yield [i , self.data[i]]
+
 
     #def collect(self):
         #gevent.spawn(self.g_collect())
 
 
+    def fetch_data(self , hashfunc = lambda a : hash(a)%5 + 4242):
+        if self.data_wide == None:
+            self.data_wide = 'setting'
+            if self.c == None:
+                self.c = zerorpc.Client()
+            temp_partitions = []
+            for i in self.get_partitions():
+                if i != self.get_id():
+                    temp_partitions.append([i,False])
+            fetched_data = []
+            while True:
+                gevent.sleep(0.01)
+                for i_index , i in enumerate(temp_partitions):
+                    if i[1] == False:
+                        self.get_connection(i[0])
+                        res = self.c.get_data(self.get_id())
+                        temp_partitions[i_index][1] = True
+                        fetched_data.extend(res)
+                count = 0
+                for i in temp_partitions:
+                    if i[1] == True:
+                        count+=1
+                if count == len(temp_partitions) :
+                    for i in self.data :
+                        if hashfunc(i) == self.get_id():
+                            fetched_data.append([i,self.data[i]])
+                    self.data_wide = fetched_data
+                    break
+
+    def calculate_narrow(self):
+        if self.data == None:
+            self.data = 'calculating'
+            temp_data = {} # Used for atomic rename
+
+            for elem in self.parent.iterator():
+                if elem[0] not in temp_data :
+                    temp_data[elem[0]] = [elem[1]]
+                else:
+                    temp_data[elem[0]].append(elem[1])
+            self.data = temp_data
+
     def get_data(self):
-        if self.data :
-            res = self.data
-            #self.data = {}
-            return res
+        if self.wide :
+            return self.wide_iter()
         else:
-            return None
+            return self.parent.get_data()
 
     def count(self):
         return len(self.collect())
@@ -95,55 +140,30 @@ class GroupByKey(RDD):
 
     def __init__(self,parent):
         self.parent = parent
-        self.data = {}
+        self.data = None
         self.c = None
+        self.wide = True
+        self.data_wide = None
         pass
 
     def iterator(self):
-
-        for elem in self.parent.iterator():
-            if elem[0] not in self.data :
-                self.data[elem[0]] = [elem[1]]
-            else:
-                self.data[elem[0]].append(elem[1])
-            #yield elem
-
-        for i in self.fetch_data():
+        self.calculate_narrow()
+        self.fetch_data()
+        temp_dict = {}
+        for i in self.data_wide :
+            if i[0] not in temp_dict:
+                temp_dict[i[0]] = []
+            temp_dict[i[0]].extend(i[1])
+        temp_data_wide = []
+        for k,v in temp_dict.iteritems():
+            temp_data_wide.append([k,v])
+        self.data_wide = temp_data_wide
+        for i in self.data_wide :
             yield i
 
 
 
-    def fetch_data(self):
-        shared_data = {}
-        if self.c == None:
-            self.c = zerorpc.Client()
-        temp_partitions = []
-        for i in self.get_partitions():
-            if i != self.get_id():
-                temp_partitions.append([i,False])
-        fetched_data = []
-        while True:
-            gevent.sleep(0.01)
 
-            for i_index , i in enumerate(temp_partitions):
-                if i[1] == False:
-                    self.get_connection(i[0])
-                    res = self.c.get_data(self.get_id())
-                    if res != None  :
-                        temp_partitions[i_index][1] = True
-                        if res != 'No Partition':
-                            fetched_data.extend(res)
-            count = 0
-            for i in temp_partitions:
-                if i[1] == True:
-                    count+=1
-            if count == len(temp_partitions) :
-                break
-        for i in  fetched_data:
-            yield i
-        for i in self.data :
-            if hash(i)%5 + 4242 == self.get_id():
-                yield [i , self.data[i]]
 
 
 
@@ -153,6 +173,7 @@ class TextFile(RDD):
         self.filename = filename
         self.data = None
         self.index = 0
+        self.wide = False
 
     def get_id(self):
         return super(TextFile,self).cur_id()
@@ -168,6 +189,10 @@ class TextFile(RDD):
 
     def get_partitions(self):
         return super(TextFile,self).get_cur_id_range()
+
+    def get_data(self):
+        # get data for text file
+        pass
 
     def get(self):
         if not self.data:
@@ -187,6 +212,7 @@ class FlatMap(RDD):
         self.func = func
         self.data = []
         self.persist = False
+        self.wide = False
 
 
 
@@ -215,6 +241,7 @@ class Union(RDD):
         self.parent2 = parent2
         self.data = []
         self.persist = False
+        self.wide = False
 
     def iterator(self):
         if (len(self.data) == 0 or not self.persist):
@@ -240,6 +267,7 @@ class Map(RDD):
         self.func = func
         self.data = []
         self.persist = False
+        self.wide = False
 
 
     def iterator(self):
@@ -259,6 +287,7 @@ class Filter(RDD):
         self.parent = parent
         self.func = func
         self.persist = False
+        self.wide = False
         self.data = []
 
     def iterator(self):

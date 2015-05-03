@@ -31,20 +31,15 @@ class Worker(object):
         return str(self.f.collect())
 
 
-    def get_data(self,port):
-        if self.f == None :
-            return 'No Partition'
-        data = self.f.get_data()
-        if not data :
-            return None
+    def get_data(self,port,hashfunc = lambda a : hash(a)%5 + 4242):
         temp = []
-
-        for i in data :
-            #print port , (hash(i)%5) , sys.argv[2]
-            if ((hash(i)%5) + int(sys.argv[2])) == port:
-                #print port , i
-                temp.append([i , data[i]])
-        #print "caller" , port , "calle" , self.f.get_id() , temp
+        if self.f :
+            for i in self.f.get_data() :
+                if i  == None :
+                    continue
+                #print port , (hash(i)%5) , sys.argv[2]
+                if hashfunc(i[0]) == port:
+                    temp.append(i)
         return temp
 
 
