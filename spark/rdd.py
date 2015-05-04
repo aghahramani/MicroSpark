@@ -3,7 +3,6 @@ import gevent
 import numpy.random as rand
 import StringIO
 import cloudpickle
-import numpy as np
 #!/usr/bin/python
 class RDD(object):
 
@@ -50,7 +49,9 @@ class RDD(object):
     def prefferedLocations(self,p):
         pass
 
-    def dependencies(self):
+    def get_dependencies(self): # We need to fix this part so when we have a wide dependency we know exactly which
+        #machines to ask for data
+        return self.dependencies
         pass
 
     def iterator(self):
@@ -98,7 +99,7 @@ class RDD(object):
         pickler.dump(obj)
         return output.getvalue()
 
-    def fetch_data(self , hashfunc = lambda a : hash(a)%6 + 4242, fetch_all = False):
+    def fetch_data(self , hashfunc = lambda a : hash(a)%6 + 4242, fetch_all = False,partitions = None, join = False):
 
         if self.data_wide == None:
             self.data_wide = 'setting'
@@ -106,8 +107,12 @@ class RDD(object):
                 self.c = zerorpc.Client()
 
             temp_partitions = []
-            for i in self.get_partitions():
-                if i != self.get_id():
+            if not partitions:
+                for i in self.get_partitions():
+                    if i != self.get_id():
+                        temp_partitions.append([i,False])
+            else:
+                for i in partitions:
                     temp_partitions.append([i,False])
 
             fetched_data = []
@@ -117,7 +122,10 @@ class RDD(object):
                     if i[1] == False:
                         self.get_connection(i[0])
                         ser_hash = self.serialize(hashfunc)
-                        res = self.c.get_data(self.get_id(),self.height,ser_hash,fetch_all)
+                        if not join :
+                            res = self.c.get_data(self.get_id(),self.height,ser_hash,fetch_all)
+                        else:
+                            res = self.c.get_data(self.get_id(),join,ser_hash,fetch_all)
                         temp_partitions[i_index][1] = True
                         fetched_data.extend(res)
                 count = 0
@@ -150,6 +158,8 @@ class RDD(object):
 
 
     def get_data(self,height):
+        if height == True:
+            return self.iterator()
         if self.wide and self.height == height:
             return self.wide_iter()
         else:
@@ -180,8 +190,27 @@ class Sample(RDD):
             self.sample_data = [self.data[i] for i in indexes]
             for i in self.sample_data:
                 yield  i
-        else:
-            yield []
+
+class Join(RDD):
+
+    def __init__(self,parent,other):
+        self.parent = parent
+        self.other = other
+        self.data = None
+        self.c = None
+        self.wide = True
+        self.data_wide= None
+        self.height = 0
+
+    def iterator(self):
+        RDD.wd.append(self.wide)
+        self.height = len(RDD.wd)
+        if self.data_wide == None:
+            self.calculate_narrow()
+            self.fetch_data(join = True,fetch_all= True , partitions=[self.other.get_id()])
+        for i in self.data_wide:
+            yield i
+
 
 class Sort(RDD):
 
@@ -194,10 +223,6 @@ class Sort(RDD):
         self.height = 0
         self.reverse = reverse
 
-
-
-
-
     def iterator(self):
         RDD.wd.append(self.wide)
         self.height = len(RDD.wd)
@@ -208,7 +233,7 @@ class Sort(RDD):
             temp_sorted = sorted(self.data_wide)
 
             def hash_func(x):
-                # We are explicityly using value 6 which we have to fix
+                # We are explicitly using value 6 which we have to fix after we fix dependencies
                 tmp = 0
                 count = 0
                 for i in temp_sorted:
@@ -218,6 +243,7 @@ class Sort(RDD):
                         continue
                     break
                 return (tmp /( len(temp_sorted)/6)) + 4242
+
             self.data = s_sample.data
             self.data_wide = None
             self.fetch_data(hashfunc= hash_func)

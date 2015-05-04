@@ -37,12 +37,14 @@ if __name__ == '__main__':
 
         p = Map(k , lambda s : [s[0] , [sum(map(int,s[1]))]])
         #fp = FlatMap(p,lambda a : a)
-        f = Filter(p, lambda a: a[1][0]>2)
+        f = Filter(p, lambda a: a[1][0]>1)
         f_sample = Sample(f,size=3)
         f_sort = Sort(p)
+        f_sort_filter = Filter(f_sort, lambda a : a[1][0]>2)
+        f_join = Join(f_sort_filter,f_sample)
         output = StringIO.StringIO()
         pickler = cloudpickle.CloudPickler(output)
-        pickler.dump(f_sort)
+        pickler.dump(f_sort_filter)
         objstr = output.getvalue()
         lis.append(gevent.spawn(start_job,count,objstr))
         count+=1
