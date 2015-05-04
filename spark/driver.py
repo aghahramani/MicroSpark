@@ -14,9 +14,8 @@ def start_job(count,ob):
     c = zerorpc.Client()
     c.connect("tcp://127.0.0.1:"+str(port+count))
     ttt = c.hello(ob)
-    for i in  ttt:
-        print i
-    print "------------"
+    return ttt
+
 
 
 
@@ -37,10 +36,10 @@ if __name__ == '__main__':
 
         p = Map(k , lambda s : [s[0] , [sum(map(int,s[1]))]])
         #fp = FlatMap(p,lambda a : a)
-        f = Filter(p, lambda a: a[1][0]>1)
+        #f = Filter(p, lambda a: a[1][0]>1)
         f_sample = Sample(f,size=3)
         f_sort = Sort(p)
-        f_sort_filter = Filter(f_sort, lambda a : a[1][0]>2)
+        f_sort_filter = Filter(f_sort, lambda a : a[1][0]>1)
         f_join = Join(f_sort_filter,f_sample)
         output = StringIO.StringIO()
         pickler = cloudpickle.CloudPickler(output)
@@ -49,6 +48,10 @@ if __name__ == '__main__':
         lis.append(gevent.spawn(start_job,count,objstr))
         count+=1
     gevent.joinall(lis)
+    for i in lis :
+        for j in i.value:
+            print j[0], j[1][0]
+        print "----------"
 
 
 

@@ -99,7 +99,7 @@ class RDD(object):
         pickler.dump(obj)
         return output.getvalue()
 
-    def fetch_data(self , hashfunc = lambda a : hash(a)%6 + 4242, fetch_all = False,partitions = None, join = False):
+    def fetch_data(self , hashfunc = lambda a : hash(a)%7 + 4242, fetch_all = False,partitions = None, join = False):
 
         if self.data_wide == None:
             self.data_wide = 'setting'
@@ -185,9 +185,12 @@ class Sample(RDD):
         self.height = len(RDD.wd)
         self.calculate_narrow()
         if len(self.data) > 0 :
-            indexes = rand.choice(range(len(self.data)),self.size if self.size < len(self.data) else len(self.data)
+            if self.size < len(self.data) :
+                indexes = rand.choice(range(len(self.data)),self.size
                 ,replace = False)
-            self.sample_data = [self.data[i] for i in indexes]
+                self.sample_data = [self.data[i] for i in indexes]
+            else :
+                self.sample_data = self.data
             for i in self.sample_data:
                 yield  i
 
@@ -227,7 +230,7 @@ class Sort(RDD):
         RDD.wd.append(self.wide)
         self.height = len(RDD.wd)
         if self.data_wide == None :
-            s_sample = Sample(self.parent,size = 10)
+            s_sample = Sample(self.parent,size = 200)
             self.data = s_sample.collect()
             self.fetch_data(fetch_all=True)
             temp_sorted = sorted(self.data_wide)
@@ -242,7 +245,7 @@ class Sort(RDD):
                         count+=1
                         continue
                     break
-                return (tmp /( len(temp_sorted)/6)) + 4242
+                return (int(tmp /( len(temp_sorted)/7.))) + 4242
 
             self.data = s_sample.data
             self.data_wide = None
