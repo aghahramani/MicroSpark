@@ -127,10 +127,12 @@ class RDD(object):
                 if count == len(temp_partitions) :
                     for i in self.data :
                         if not fetch_all:
-                            if hashfunc(i[0]) == self.get_id():
-                                fetched_data.append(i)
+                            if i :
+                                if hashfunc(i[0]) == self.get_id():
+                                    fetched_data.append(i)
                         else:
-                            fetched_data.append(i)
+                            if i :
+                                fetched_data.append(i)
                     self.data_wide = fetched_data
                     break
 
@@ -190,6 +192,9 @@ class Sort(RDD):
         self.wide = True
         self.data_wide = None
         self.height = 0
+        self.reverse = reverse
+
+
 
 
 
@@ -197,10 +202,26 @@ class Sort(RDD):
         RDD.wd.append(self.wide)
         self.height = len(RDD.wd)
         if self.data_wide == None :
-            s_sample = Sample(self.parent,size = 3)
+            s_sample = Sample(self.parent,size = 10)
             self.data = s_sample.collect()
             self.fetch_data(fetch_all=True)
+            temp_sorted = sorted(self.data_wide)
 
+            def hash_func(x):
+                # We are explicityly using value 6 which we have to fix
+                tmp = 0
+                count = 0
+                for i in temp_sorted:
+                    if x > i[0]:
+                        tmp = count
+                        count+=1
+                        continue
+                    break
+                return (tmp /( len(temp_sorted)/6)) + 4242
+            self.data = s_sample.data
+            self.data_wide = None
+            self.fetch_data(hashfunc= hash_func)
+            self.data_wide = sorted(self.data_wide, reverse = self.reverse)
         for i in self.data_wide:
             yield i
 

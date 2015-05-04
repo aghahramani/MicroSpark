@@ -42,10 +42,12 @@ class Worker(object):
                 if i  == None :
                     continue
                 if not fetch_all:
-                    if hash_func(i[0]) == port:
-                        temp.append(i)
+                    if i :
+                        if hash_func(i[0]) == port:
+                            temp.append(i)
                 else:
-                    temp.append(i)
+                    if i :
+                        temp.append(i)
         return temp
 
 

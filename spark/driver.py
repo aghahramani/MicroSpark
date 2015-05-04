@@ -13,7 +13,10 @@ from gevent import Greenlet
 def start_job(count,ob):
     c = zerorpc.Client()
     c.connect("tcp://127.0.0.1:"+str(port+count))
-    print c.hello(ob)
+    ttt = c.hello(ob)
+    for i in  ttt:
+        print i
+    print "------------"
 
 
 
@@ -34,9 +37,9 @@ if __name__ == '__main__':
 
         p = Map(k , lambda s : [s[0] , [sum(map(int,s[1]))]])
         #fp = FlatMap(p,lambda a : a)
-        f = Filter(p, lambda a: a[1]>2)
+        f = Filter(p, lambda a: a[1][0]>2)
         f_sample = Sample(f,size=3)
-        f_sort = GroupByKey(p)
+        f_sort = Sort(p)
         output = StringIO.StringIO()
         pickler = cloudpickle.CloudPickler(output)
         pickler.dump(f_sort)
