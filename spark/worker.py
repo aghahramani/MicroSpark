@@ -27,6 +27,7 @@ class Worker(object):
         unpickler = pickle.Unpickler(input)
         self.f = unpickler.load()
         self.f.set_id(sys.argv[1])
+        # id_range and hash range will be changed when dependencies are fixed?
         self.f.set_id_range(int(sys.argv[2]),int(sys.argv[3]))
         self.hash_range = int(sys.argv[3])+1 - int(sys.argv[2])
         return self.f.collect()
@@ -37,15 +38,9 @@ class Worker(object):
         unpickler = pickle.Unpickler(input)
         hash_func= unpickler.load()
         temp = []
-        # if height not in self.data_book:
-        #     self.data_book[height] = []
-        # if (port[0] not in self.data_book[height] )or forced:
-            #self.data_book[height].append(port[0])
         if self.f :
-            #print self.f.get_id(),port
             for i in self.f.get_data(height) :
                 if i  == None :
-                    #gevent.sleep(0.001)
                     continue
                 if not fetch_all:
                     if i :
@@ -54,9 +49,6 @@ class Worker(object):
                 else:
                     if i :
                         temp.append(i)
-            #if ['10','1'] in temp:
-            #    print temp
-            #       print self.f.get_id() , port
         return temp
 
 

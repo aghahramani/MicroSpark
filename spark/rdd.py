@@ -90,11 +90,6 @@ class RDD(object):
         for i in self.data:
             yield i
 
-
-    #def collect(self):
-        #gevent.spawn(self.g_collect())
-
-
     def serialize(self,obj):
         output = StringIO.StringIO()
         pickler = cloudpickle.CloudPickler(output)
@@ -116,7 +111,6 @@ class RDD(object):
             else:
                 for i in partitions:
                     temp_partitions.append([i,False])
-
             fetched_data = []
             geven_lis = []
             for i_index , i in enumerate(temp_partitions):
@@ -127,10 +121,6 @@ class RDD(object):
                                                         fetch_all,forced))
                 else:
                     res = self.c.get_data([self.get_id(),turn],join,ser_hash,fetch_all,forced)
-            gevent.joinall(geven_lis)
-            for i in geven_lis:
-                for j in i.value:
-                    fetched_data.append(j)
             for i in self.data :
                 if not fetch_all:
                     if i :
@@ -139,9 +129,10 @@ class RDD(object):
                 else:
                     if i :
                         fetched_data.append(i)
+            gevent.joinall(geven_lis)
+            for i in geven_lis:
+                fetched_data.extend(i.value)
             self.data_wide = fetched_data
-            #fetched_data=[]
-
 
     def calculate_narrow(self):
         if self.data == None:
@@ -151,12 +142,6 @@ class RDD(object):
 
             self.data = temp_data
             self.status = 'Done'
-
-
-
-
-
-
 
     def get_data(self,height):
         #print height
@@ -199,9 +184,8 @@ class Sample(RDD):
                 ,replace = False)
                 self.data = [self.data[i] for i in indexes]
 
-        #print "height here" , self.height
         self.fetch_data(fetch_all=True)
-       # print self.data_wide
+
         for i in self.data_wide:
             yield  i
 
@@ -259,7 +243,7 @@ class Sort(RDD):
             temp_sorted = sorted(sample_data)
 
             def hash_func(x):
-                # We are explicitly using value 6 which we have to fix after we fix dependencies
+                # We are explicitly using value 7 which we have to fix after we fix dependencies
                 tmp = 0
                 count = 0
                 for i in temp_sorted:
@@ -268,15 +252,14 @@ class Sort(RDD):
                         count+=1
                         continue
                     break
-                bucket_length = len(temp_sorted)/7.
-                return int(tmp /bucket_length) + 4242
+                bucket_length = len(temp_sorted)/7
+                return (tmp /bucket_length) + 4242
 
             self.fetch_data(turn = 1,hashfunc= hash_func)
             self.data_wide = sorted(self.data_wide, reverse = self.reverse)
         for i in self.data_wide:
             yield i
 
-            #self.fetch_data(fetch_all=True)
 
 
 
@@ -316,7 +299,6 @@ class GroupByKey(RDD):
             self.data_wide = list(temp_data_wide)
         while self.data_wide == 'setting':
             gevent.sleep(0.001)
-            #print "sss"
             yield []
         for i in self.data_wide :
             if len (i) > 0  :
