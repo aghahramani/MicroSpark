@@ -12,7 +12,7 @@ from gevent import Greenlet
 
 def start_job(count,ob):
     c = zerorpc.Client()
-    c.connect("tcp://127.0.0.1:"+str(port+count))
+    c.connect("tcp://127.0.0.1:"+str(count))
     ttt = c.hello(ob)
     return ttt
 
@@ -25,10 +25,13 @@ if __name__ == '__main__':
     count = 0
     mypath = './Data/'
     files = [ join(mypath,f) for f in listdir(mypath) if isfile(join(mypath,f)) ]
+    #print files
     for file in files:
+        #print file
+        #print count+4242
         r = TextFile(file)
         m = Map(r, lambda s: s.split())
-        m.set_persist()
+        #m.set_persist()
         fm = FlatMap(m , lambda a : a)
         mfm = Map(fm , lambda a : [a , '1'])
         #
@@ -37,21 +40,21 @@ if __name__ == '__main__':
         p = Map(k , lambda s : [s[0] , [sum(map(int,s[1]))]])
         #fp = FlatMap(p,lambda a : a)
         #f = Filter(p, lambda a: a[1][0]>1)
-        f_sample = Sample(f,size=3)
+        f_sample = Sample(p,size=3)
         f_sort = Sort(p)
-        f_sort_filter = Filter(f_sort, lambda a : a[1][0]>1)
+        f_sort_filter = Filter(f_sort, lambda a :True)
         f_join = Join(f_sort_filter,f_sample)
         output = StringIO.StringIO()
         pickler = cloudpickle.CloudPickler(output)
-        pickler.dump(f_sort_filter)
+        pickler.dump(f_sort)
         objstr = output.getvalue()
-        lis.append(gevent.spawn(start_job,count,objstr))
+        lis.append(gevent.spawn(start_job,port + count,objstr))
         count+=1
     gevent.joinall(lis)
     for i in lis :
         for j in i.value:
-            print j[0], j[1][0]
-        print "----------"
+            print j[0] , j[1][0]
+            pass
 
 
 
