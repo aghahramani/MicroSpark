@@ -228,10 +228,10 @@ class Join(RDD):
         RDD.wd.append(self.wide)
         if self.height == 0 :
             self.height = len(RDD.wd)
-        self.cur_depend = self.merge_dependencies(self.parent,self.other)
         #print self.cur_depend
         if self.data_wide == None:
             self.calculate_narrow()
+            self.cur_depend = self.merge_dependencies(self.parent,self.other)
             self.fetch_data()
         for i in self.data_wide:
             yield i
