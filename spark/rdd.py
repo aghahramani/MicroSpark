@@ -12,8 +12,14 @@ class RDD(object):
     def __init__(self):
         self.id = None
         self.id_range = None
+        self.depend = None
 
 
+    def merge_dependencies(self,p1,p2):
+        depend1 = p1.get_dependencies()
+        depend2 = p2.get_dependencies()
+        depend1.extend(depend2)
+        return list(set(depend1))
 
     def set_id(self,port):
         self.parent.set_id(port)
@@ -23,6 +29,12 @@ class RDD(object):
 
     def set_id_range(self,start,end):
         self.parent.set_id_range(start,end)
+
+    def set_dependencies(self,depend_list):
+        self.parent.set_dependencies(depend_list)
+
+    def set_cur_dependencies(self,depend_list):
+        self.depend = depend_list
 
     def set_cur_id_range(self, start, end):
         self.id_range = range(start,end)
@@ -51,16 +63,21 @@ class RDD(object):
     def prefferedLocations(self,p):
         pass
 
-    def get_dependencies(self): # We need to fix this part so when we have a wide dependency we know exactly which
-        #machines to ask for data
-        return self.dependencies
-        pass
 
     def iterator(self):
         pass
 
     def partitioner(self):
         pass
+
+    def get_dependencies(self):
+        if self.cur_depend == None:
+            return self.parent.get_dependencies()
+        return self.cur_depend
+
+    def get_cur_dependencies(self):
+
+        return self.depend
 
     def get_id_range(self):
         return self.parent.get_id_range()
@@ -96,25 +113,28 @@ class RDD(object):
         pickler.dump(obj)
         return output.getvalue()
 
-    def fetch_data(self , turn = 0,hashfunc = lambda a : hash(a)%7 + 4242, fetch_all = False,partitions = None,
+
+    def fetch_data(self , turn = 0,hashfunc = None, fetch_all = False,partitions = None,
                    join = False, forced = False):
+
+        if hashfunc == None:
+            depend_len = len(self.get_dependencies())
+            def default_hash(x):
+                return hash(x)% depend_len + 4242
+            hashfunc = default_hash
+
+
         if self.data_wide == None:
             self.data_wide = 'setting'
             if self.c == None:
                 self.c = zerorpc.Client()
 
-            temp_partitions = []
-            if not partitions:
-                for i in self.get_partitions():
-                    if i != self.get_id():
-                        temp_partitions.append([i,False])
-            else:
-                for i in partitions:
-                    temp_partitions.append([i,False])
             fetched_data = []
             geven_lis = []
-            for i_index , i in enumerate(temp_partitions):
-                self.get_connection(i[0])
+            for i in self.get_dependencies():
+                if i == self.get_id():
+                    continue
+                self.get_connection(i)
                 ser_hash = self.serialize(hashfunc)
                 if not join :
                     geven_lis.append(gevent.spawn(self.c.get_data,[self.get_id(),turn],self.height,ser_hash,
@@ -172,6 +192,7 @@ class Sample(RDD):
         self.fetched_count = 0
         self.data_wide = None
         self.c = None
+        self.cur_depend = None
 
     def iterator(self):
         RDD.wd.append(self.wide)
@@ -201,14 +222,17 @@ class Join(RDD):
         self.height = 0
         self.status = None
         self.fetched_count = 0
+        self.cur_depend = None
 
     def iterator(self):
         RDD.wd.append(self.wide)
         if self.height == 0 :
             self.height = len(RDD.wd)
+        self.cur_depend = self.merge_dependencies(self.parent,self.other)
+        #print self.cur_depend
         if self.data_wide == None:
             self.calculate_narrow()
-            self.fetch_data(join = True,fetch_all= True , partitions=[self.other.get_id()])
+            self.fetch_data()
         for i in self.data_wide:
             yield i
 
@@ -225,6 +249,7 @@ class Sort(RDD):
         self.reverse = reverse
         self.status = None
         self.fetched_count = 0
+        self.cur_depend = None
 
     def iterator(self):
 
@@ -277,6 +302,7 @@ class GroupByKey(RDD):
         self.height = 0
         self.status = None
         self.fetched_count = 0
+        self.cur_depend = None
 
 
 
@@ -321,6 +347,13 @@ class TextFile(RDD):
         self.height = 0
         self.status = None
         self.fetched_count = 0
+        self.cur_depend = None
+
+    def set_dependencies(self,depend_list):
+        super(TextFile,self).set_cur_dependencies(depend_list)
+
+    def get_dependencies(self):
+        return super(TextFile,self).get_cur_dependencies()
 
     def get_id(self):
         return super(TextFile,self).cur_id()
@@ -365,6 +398,7 @@ class FlatMap(RDD):
         self.height = 0
         self.status = None
         self.fetched_count = 0
+        self.cur_depend = None
 
 
 
@@ -402,6 +436,7 @@ class Union(RDD):
         self.height = 0
         self.status = None
         self.fetched_count = 0
+        self.cur_depend = None
 
     def iterator(self):
         RDD.wd.append(self.wide)
@@ -434,6 +469,7 @@ class Map(RDD):
         self.height = 0
         self.status = None
         self.fetched_count = 0
+        self.cur_depend = None
 
 
     def iterator(self):
@@ -461,6 +497,7 @@ class Filter(RDD):
         self.height = 0
         self.status = None
         self.fetched_count = 0
+        self.cur_depend = None
 
     def iterator(self):
         RDD.wd.append(self.wide)

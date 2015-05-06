@@ -9,5 +9,10 @@
 ./worker.py 4248 4242 4250 &
 ./worker.py 4249 4242 4250 &
 ./worker.py 4250 4242 4250 &
+./worker.py 4251 4242 4250 &
+./worker.py 4252 4242 4250 &
+./worker.py 4253 4242 4250 &
+./worker.py 4254 4242 4250 &
+./worker.py 4255 4242 4250 &
 
 ./driver.py
