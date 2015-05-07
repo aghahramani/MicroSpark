@@ -27,9 +27,6 @@ class Worker(object):
         unpickler = pickle.Unpickler(input)
         self.f = unpickler.load()
         self.f.set_id(sys.argv[1])
-        # id_range and hash range will be changed when dependencies are fixed?
-        self.f.set_id_range(int(sys.argv[2]),int(sys.argv[3]))
-        self.hash_range = int(sys.argv[3])+1 - int(sys.argv[2])
         return self.f.collect()
 
 
@@ -38,19 +35,21 @@ class Worker(object):
         unpickler = pickle.Unpickler(input)
         hash_func= unpickler.load()
         temp = []
-        if self.f :
-            for i in self.f.get_data(height) :
-                if i  == None :
-                    continue
-                if not fetch_all:
-                    if i :
-                        if hash_func(i[0]) == port[0]:
-                            temp.append(i)
-                else:
-                    if i :
+        while self.f == None : # Reason : When we call hello method on each worker there is a chance that one of the
+            #workers not yet initialized but the other worker calls get_data on it. This is why we need this
+            gevent.sleep(0.001)
+        #print self.f,self.f.height,len(self.f.get_dependencies()),"-------------------------------"
+        for i in self.f.get_data(height) :
+            if i  == None :
+                continue
+            if not fetch_all:
+                if i :
+                    if hash_func(i[0]) == port[0]:
                         temp.append(i)
+            else:
+                if i :
+                    temp.append(i)
         return temp
-
 
 
 s = zerorpc.Server(Worker())

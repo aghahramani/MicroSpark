@@ -16,10 +16,10 @@ class RDD(object):
 
 
     def merge_dependencies(self,p1,p2):
-        depend1 = p1.get_dependencies()
-        depend2 = p2.get_dependencies()
-        depend1.extend(depend2)
-        return list(set(depend1))
+        depend1 = p1.get_dependencies()[:]
+        depend2 = p2.get_dependencies()[:]
+        res = depend1 + depend2
+        return list(set(res))
 
     def set_id(self,port):
         self.parent.set_id(port)
@@ -101,11 +101,12 @@ class RDD(object):
         return elements
 
     def wide_iter(self):
-        while self.status != 'Done':
-            gevent.sleep(0.0001)
+        while self.data == None:
+            gevent.sleep(0.01)
             yield None
         for i in self.data:
             yield i
+        self.wide_count+=1
 
     def serialize(self,obj):
         output = StringIO.StringIO()
@@ -119,11 +120,11 @@ class RDD(object):
 
         if hashfunc == None:
             depend_len = len(self.get_dependencies())
+
             def default_hash(x):
                 return hash(x)% depend_len + 4242
+
             hashfunc = default_hash
-
-
         if self.data_wide == None:
             self.data_wide = 'setting'
             if self.c == None:
@@ -136,11 +137,8 @@ class RDD(object):
                     continue
                 self.get_connection(i)
                 ser_hash = self.serialize(hashfunc)
-                if not join :
-                    geven_lis.append(gevent.spawn(self.c.get_data,[self.get_id(),turn],self.height,ser_hash,
+                geven_lis.append(gevent.spawn(self.c.get_data,[self.get_id(),turn],self.height,ser_hash,
                                                         fetch_all,forced))
-                else:
-                    res = self.c.get_data([self.get_id(),turn],join,ser_hash,fetch_all,forced)
             for i in self.data :
                 if not fetch_all:
                     if i :
@@ -159,20 +157,16 @@ class RDD(object):
             temp_data = []
             for elem in self.parent.iterator():
                 temp_data.append(elem)
-
             self.data = temp_data
             self.status = 'Done'
 
     def get_data(self,height):
-        #print height
-        #print "self", self.height
-        if type(height) == int :
-            if self.wide and height == self.height:
-                return self.wide_iter()
-            else:
-                return self.parent.get_data(height)
+        #print "wide,self ,s_height, height,self.parent",self,self.wide,self.height,height,self.parent
+        if self.wide and height == self.height:
+            #print "Im in   =--------"
+            return self.wide_iter()
         else:
-            return self.iterator()
+            return self.parent.get_data(height)
 
     def count(self):
         return len(self.collect())
@@ -193,6 +187,7 @@ class Sample(RDD):
         self.data_wide = None
         self.c = None
         self.cur_depend = None
+        self.wide_count = 0
 
     def iterator(self):
         RDD.wd.append(self.wide)
@@ -206,7 +201,8 @@ class Sample(RDD):
                 self.data = [self.data[i] for i in indexes]
 
         self.fetch_data(fetch_all=True)
-
+        #print "sample wide dependencies", len(self.get_dependencies())
+        #print "sample wide count", self.wide_count
         for i in self.data_wide:
             yield  i
 
@@ -223,16 +219,18 @@ class Join(RDD):
         self.status = None
         self.fetched_count = 0
         self.cur_depend = None
+        self.wide_count = 0
 
     def iterator(self):
         RDD.wd.append(self.wide)
         if self.height == 0 :
             self.height = len(RDD.wd)
-        #print self.cur_depend
         if self.data_wide == None:
             self.calculate_narrow()
+            #print len(self.data)
+            #print "here"
             self.cur_depend = self.merge_dependencies(self.parent,self.other)
-            self.fetch_data()
+            self.fetch_data(join = True)
         for i in self.data_wide:
             yield i
 
@@ -250,6 +248,7 @@ class Sort(RDD):
         self.status = None
         self.fetched_count = 0
         self.cur_depend = None
+        self.wide_count = 0
 
     def iterator(self):
 
@@ -257,16 +256,19 @@ class Sort(RDD):
         if self.height == 0 :
             self.height = len(RDD.wd)
         if self.data_wide == None :
-            s_sample = Sample(self.parent,size = 3)
+            s_sample = Sample(self.parent,size = 5)
             temp_parent = self.parent
             self.parent = s_sample
             sample_data= []
             for i in s_sample.iterator():
                 sample_data.append(i)
+            while(self.parent.wide_count != (len(self.get_dependencies())-1)):
+                gevent.sleep(0.001)
+            # I am not sure if we need this while loop. DO NOT DELETE IT YET
             self.parent = temp_parent
             self.calculate_narrow()
             temp_sorted = sorted(sample_data)
-
+            depend_len = len(self.get_dependencies())
             def hash_func(x):
                 # We are explicitly using value 7 which we have to fix after we fix dependencies
                 tmp = 0
@@ -277,10 +279,10 @@ class Sort(RDD):
                         count+=1
                         continue
                     break
-                bucket_length = len(temp_sorted)/7
+                bucket_length = len(temp_sorted)/depend_len
                 return (tmp /bucket_length) + 4242
 
-            self.fetch_data(turn = 1,hashfunc= hash_func)
+            self.fetch_data(hashfunc= hash_func)
             self.data_wide = sorted(self.data_wide, reverse = self.reverse)
         for i in self.data_wide:
             yield i
@@ -303,6 +305,7 @@ class GroupByKey(RDD):
         self.status = None
         self.fetched_count = 0
         self.cur_depend = None
+        self.wide_count = 0
 
 
 
@@ -313,11 +316,15 @@ class GroupByKey(RDD):
             self.height = len(RDD.wd)
         if self.data_wide == None:
             self.calculate_narrow()
+            #print self.get_id()
+            #print self.data
             self.fetch_data()
             temp_dict = {}
             for i in self.data_wide :
                 if i[0] not in temp_dict:
                     temp_dict[i[0]] = []
+                if type(i[1]) != list:
+                    i[1] = [i[1]]
                 temp_dict[i[0]].extend(i[1])
             temp_data_wide = []
             for k,v in temp_dict.iteritems():
