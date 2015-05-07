@@ -17,6 +17,9 @@ class Worker(object):
         self.data_book={}
         pass
 
+    def ping(self):
+        return True
+
     def controller(self):
         while True:
             print "[Contoller]"
@@ -27,6 +30,9 @@ class Worker(object):
         unpickler = pickle.Unpickler(input)
         self.f = unpickler.load()
         self.f.set_id(sys.argv[1])
+        # if sys.argv[1] == '4244' and len(sys.argv)<3:
+        #     gevent.sleep(5)
+        #     s.close()
         return self.f.collect()
 
 

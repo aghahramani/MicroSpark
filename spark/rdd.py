@@ -9,6 +9,13 @@ class RDD(object):
 
     wd = []
 
+    def connect_master(self,value):
+        c = zerorpc.Client()
+        c.connect("tcp://127.0.0.1:4241")
+        c.add_failed_nodes(value)
+        c.close()
+
+
     def __init__(self):
         self.id = None
         self.id_range = None
@@ -126,6 +133,7 @@ class RDD(object):
                 return hash(x)% depend_len + first
             hashfunc = default_hash
         ser_hash = self.serialize(hashfunc)
+        potential_fail = []
         if self.data_wide == None:
             self.data_wide = 'setting'
             if self.c == None:
@@ -137,8 +145,12 @@ class RDD(object):
                 if i == self.get_id():
                     continue
                 self.get_connection(i)
+
                 geven_lis.append(gevent.spawn(self.c.get_data,[self.get_id(),turn],self.height,ser_hash,
-                                                        fetch_all,forced))
+                                                  fetch_all,forced))
+
+
+                potential_fail.append(i)
             for i in self.data :
                 if not fetch_all:
                     if i :
@@ -147,9 +159,35 @@ class RDD(object):
                 else:
                     if i :
                         fetched_data.append(i)
+
             gevent.joinall(geven_lis)
-            for i in geven_lis:
+
+            failed_list = []
+            for i_index,i in enumerate(geven_lis):
+                if i.value == None:
+                    failed_list.append(potential_fail[i_index])
+                    continue
                 fetched_data.extend(i.value)
+
+            geven_lis = []
+            while len(failed_list) != 0 :
+                self.connect_master([i for i in failed_list])
+                potential_fail=[]
+                for i in failed_list:
+                    self.get_connection(i)
+                    geven_lis.append(gevent.spawn(self.c.get_data,[self.get_id(),turn],self.height,ser_hash,
+                                                        fetch_all,forced))
+                    potential_fail.append(i)
+
+
+                gevent.joinall(geven_lis)
+
+                failed_list = []
+                for i_index,i in enumerate(geven_lis):
+                    if i.value == None:
+                        failed_list.append(potential_fail[i_index])
+                        continue
+                    fetched_data.extend(i.value)
             self.data_wide = fetched_data
 
     def calculate_narrow(self):

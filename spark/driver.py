@@ -10,6 +10,7 @@ from os import listdir
 import subprocess
 from os import system
 from os.path import isfile, join
+import sys
 from gevent import Greenlet
 
 def start_job(count,ob):
@@ -19,21 +20,63 @@ def start_job(count,ob):
     return ttt
 
 
+
+
 class WorkerQueue(object):
 
-    def __init__(self, n = 15):
+    def __init__(self, n = 20 ):
         self.init_ip = 4242
         self.workers = [self.start_worker(self.init_ip+_) for _ in xrange(n)]
+        m = Master()
+        s = zerorpc.Server(m)
+        s.bind("tcp://0.0.0.0:"+ str('4241'))
+        gevent.spawn(s.run)
 
     def start_worker(self,port):
+        #if port != 4247:
         system("./worker.py " +str(port) + " &" )
         return port
 
     def get_worker(self):
         return self.workers.pop(0)
 
+
+    def add_failed_nodes(self,value):
+        for i in value:
+            if self.ping(i):
+                continue
+            system("./worker.py " +str(i) + " force &" )
+            start_job(i,Parallel.para_worker_dict[i])
+
+
+
+    def ping(self,value):
+        c = self.create_connection(value)
+        try :
+            c.ping()
+            return True
+        except :
+            print sys.exc_info()[0]
+            return False
+
+
+
+    def create_connection(self,value):
+        c = zerorpc.Client()
+        c.connect("tcp://127.0.0.1:" + str(value))
+        return c
+
+
+class Master(WorkerQueue):
+
+    def __init__(self):
+        pass
+
+
+
 class Parallel(object):
 
+    para_worker_dict={}
 
     def __init__(self,worker_queue):
         self.wq = worker_queue
@@ -43,7 +86,7 @@ class Parallel(object):
         files = [ join(mypath,f) for f in listdir(mypath) if isfile(join(mypath,f))]
         text_list =[]
         for file in files:
-            self.dependencies.append(wq.get_worker())
+            self.dependencies.append(self.wq.get_worker())
             text_list.append(TextFile(file))
         for i in text_list:
             i.set_dependencies(self.dependencies)
@@ -96,6 +139,7 @@ class Parallel(object):
         g_list = []
         for i_index, i  in enumerate(parent):
             i_obj = self.serialize(i)
+            Parallel.para_worker_dict[self.dependencies[i_index]] = i_obj
             g_list.append(gevent.spawn(start_job,self.dependencies[i_index],i_obj))
         gevent.joinall(g_list)
         return [i.value for i in g_list]
@@ -108,9 +152,7 @@ class Parallel(object):
 
 
 
-
-if __name__ == '__main__':
-
+def join_sort_test():
     wq = WorkerQueue()
     p = Parallel(wq)
     s = p.textFile('./Data')
@@ -121,13 +163,26 @@ if __name__ == '__main__':
     s1 = p1.map(s1,lambda x : x.split())
     s1 = p1.flatmap(s1, lambda x : [x , '1'])
     s = p.join(s1,s)
+    #s = p.groupbykey(s)
     s = p.map(s, lambda x : [x[0] , sum(map(int,x[1]))])
     s = p.sort(s)
     s = p.execute(s)
     for i in s :
          for j in i :
              print j[0], j[1]
-             pass
+
+
+
+
+
+
+
+
+
+if __name__ == '__main__':
+
+    join_sort_test()
+
 
 
     #print s
