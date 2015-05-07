@@ -34,7 +34,6 @@ class WorkerQueue(object):
 
 class Parallel(object):
 
-    port = 4242
 
     def __init__(self,worker_queue):
         self.wq = worker_queue
