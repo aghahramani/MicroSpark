@@ -19,7 +19,8 @@ class RDD(object):
         depend1 = p1.get_dependencies()[:]
         depend2 = p2.get_dependencies()[:]
         res = depend1 + depend2
-        return list(set(res))
+        res = sorted(res)
+        return res
 
     def set_id(self,port):
         self.parent.set_id(port)
@@ -119,12 +120,12 @@ class RDD(object):
                    join = False, forced = False):
 
         if hashfunc == None:
+            first = self.get_dependencies()[0]
             depend_len = len(self.get_dependencies())
-
             def default_hash(x):
-                return hash(x)% depend_len + 4242
-
+                return hash(x)% depend_len + first
             hashfunc = default_hash
+        ser_hash = self.serialize(hashfunc)
         if self.data_wide == None:
             self.data_wide = 'setting'
             if self.c == None:
@@ -136,7 +137,6 @@ class RDD(object):
                 if i == self.get_id():
                     continue
                 self.get_connection(i)
-                ser_hash = self.serialize(hashfunc)
                 geven_lis.append(gevent.spawn(self.c.get_data,[self.get_id(),turn],self.height,ser_hash,
                                                         fetch_all,forced))
             for i in self.data :
@@ -230,7 +230,18 @@ class Join(RDD):
             #print len(self.data)
             #print "here"
             self.cur_depend = self.merge_dependencies(self.parent,self.other)
-            self.fetch_data(join = True)
+            self.fetch_data()
+            temp_dict = {}
+            for i in self.data_wide :
+                if i[0] not in temp_dict:
+                    temp_dict[i[0]] = []
+                if type(i[1]) != list:
+                    i[1] = [i[1]]
+                temp_dict[i[0]].extend(i[1])
+            temp_data_wide = []
+            for k,v in temp_dict.iteritems():
+                temp_data_wide.append([k,v])
+            self.data_wide = list(temp_data_wide)
         for i in self.data_wide:
             yield i
 
@@ -269,6 +280,7 @@ class Sort(RDD):
             self.calculate_narrow()
             temp_sorted = sorted(sample_data)
             depend_len = len(self.get_dependencies())
+            first = self.get_dependencies()[0]
             def hash_func(x):
                 # We are explicitly using value 7 which we have to fix after we fix dependencies
                 tmp = 0
@@ -280,7 +292,7 @@ class Sort(RDD):
                         continue
                     break
                 bucket_length = len(temp_sorted)/depend_len
-                return (tmp /bucket_length) + 4242
+                return (tmp /bucket_length) + first
 
             self.fetch_data(hashfunc= hash_func)
             self.data_wide = sorted(self.data_wide, reverse = self.reverse)
