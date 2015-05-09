@@ -1,4 +1,6 @@
 #!/bin/bash
+
+echo test1 : Word count sort
 echo spark run time
 time ./driver.py > res_spark.txt
 echo local run time

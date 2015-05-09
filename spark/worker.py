@@ -25,18 +25,24 @@ class Worker(object):
             print "[Contoller]"
             gevent.sleep(1)
 
+    def hello_with_failure(self,objstr):
+        if sys.argv[1] == '4244':
+            s.close()
+        else:
+            input = StringIO.StringIO(objstr)
+            unpickler = pickle.Unpickler(input)
+            self.f = unpickler.load()
+            self.f.set_id(sys.argv[1])
+            return self.f.collect()
+
     def hello(self, objstr):
         input = StringIO.StringIO(objstr)
         unpickler = pickle.Unpickler(input)
         self.f = unpickler.load()
         self.f.set_id(sys.argv[1])
-        # if sys.argv[1] == '4244' and len(sys.argv)<3:
-        #     gevent.sleep(5)
-        #     s.close()
         return self.f.collect()
 
-
-    def get_data(self,port,height,hash_func,fetch_all = False, forced = False):
+    def get_data_async(self,port,height,hash_func,fetch_all = False, forced = False):
         input = StringIO.StringIO(hash_func)
         unpickler = pickle.Unpickler(input)
         hash_func= unpickler.load()
@@ -58,6 +64,14 @@ class Worker(object):
         return temp
 
 
+    def get_data(self,port,height,hash_func,fetch_all = False, forced = False):
+        g = gevent.spawn(self.get_data_async,port,height,hash_func,fetch_all,forced)
+        g.join()
+        return g.value
+
+
+
 s = zerorpc.Server(Worker())
-s.bind("tcp://0.0.0.0:"+ sys.argv[1])
+
+s.bind("tcp://127.0.0.1:"+ sys.argv[1])
 s.run()

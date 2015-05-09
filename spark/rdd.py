@@ -3,6 +3,7 @@ import gevent
 import numpy.random as rand
 import StringIO
 import cloudpickle
+import sys
 
 #!/usr/bin/python
 class RDD(object):
@@ -103,6 +104,7 @@ class RDD(object):
         self.persist = True
 
     def collect(self):
+        RDD.wd=[]
         elements = []
         for elem in self.iterator():
             elements.append(elem)
@@ -137,7 +139,7 @@ class RDD(object):
         if self.data_wide == None:
             self.data_wide = 'setting'
             if self.c == None:
-                self.c = zerorpc.Client()
+                self.c = zerorpc.Client(timeout=3)
 
             fetched_data = []
             geven_lis = []
@@ -145,11 +147,8 @@ class RDD(object):
                 if i == self.get_id():
                     continue
                 self.get_connection(i)
-
                 geven_lis.append(gevent.spawn(self.c.get_data,[self.get_id(),turn],self.height,ser_hash,
                                                   fetch_all,forced))
-
-
                 potential_fail.append(i)
             for i in self.data :
                 if not fetch_all:
@@ -159,29 +158,26 @@ class RDD(object):
                 else:
                     if i :
                         fetched_data.append(i)
-
-            gevent.joinall(geven_lis)
-
+            gevent.joinall(geven_lis) # Unfortunatly joinall does not RAISE the exception. It uses traceback.print
+            # to print the exception without and file defined so it will print it to sys.err so no way for us to get
+            # around the terminal exceptions throwing FOR NOW
             failed_list = []
             for i_index,i in enumerate(geven_lis):
-                if i.value == None:
+                if i.value== None:
                     failed_list.append(potential_fail[i_index])
                     continue
                 fetched_data.extend(i.value)
-
-            geven_lis = []
             while len(failed_list) != 0 :
                 self.connect_master([i for i in failed_list])
+                gevent.sleep(0.01)
+                geven_lis = []
                 potential_fail=[]
                 for i in failed_list:
                     self.get_connection(i)
                     geven_lis.append(gevent.spawn(self.c.get_data,[self.get_id(),turn],self.height,ser_hash,
                                                         fetch_all,forced))
                     potential_fail.append(i)
-
-
                 gevent.joinall(geven_lis)
-
                 failed_list = []
                 for i_index,i in enumerate(geven_lis):
                     if i.value == None:
@@ -228,8 +224,8 @@ class Sample(RDD):
         self.wide_count = 0
 
     def iterator(self):
-        RDD.wd.append(self.wide)
         if self.height == 0 :
+            RDD.wd.append(self.wide)
             self.height = len(RDD.wd)
         self.calculate_narrow()
         if len(self.data) > 0 and self.status =='Done':
@@ -260,8 +256,8 @@ class Join(RDD):
         self.wide_count = 0
 
     def iterator(self):
-        RDD.wd.append(self.wide)
         if self.height == 0 :
+            RDD.wd.append(self.wide)
             self.height = len(RDD.wd)
         if self.data_wide == None:
             self.calculate_narrow()
@@ -301,8 +297,8 @@ class Sort(RDD):
 
     def iterator(self):
 
-        RDD.wd.append(self.wide)
         if self.height == 0 :
+            RDD.wd.append(self.wide)
             self.height = len(RDD.wd)
         if self.data_wide == None :
             s_sample = Sample(self.parent,size = 5)
@@ -361,8 +357,8 @@ class GroupByKey(RDD):
 
 
     def iterator(self):
-        RDD.wd.append(self.wide)
         if self.height == 0 :
+            RDD.wd.append(self.wide)
             self.height = len(RDD.wd)
         if self.data_wide == None:
             self.calculate_narrow()
@@ -438,8 +434,9 @@ class TextFile(RDD):
             f.close()
     
     def iterator(self):
-        RDD.wd.append(self.wide)
-        self.height = len(RDD.wd)
+        if self.height == 0 :
+            RDD.wd.append(self.wide)
+            self.height = len(RDD.wd)
         self.get()
         for line in self.data:
             yield line
@@ -460,8 +457,8 @@ class FlatMap(RDD):
 
 
     def iterator(self):
-        RDD.wd.append(self.wide)
         if self.height == 0 :
+            RDD.wd.append(self.wide)
             self.height = len(RDD.wd)
         if (len(self.data) == 0 or not self.persist):
             for elem in self.parent.iterator():
@@ -496,8 +493,8 @@ class Union(RDD):
         self.cur_depend = None
 
     def iterator(self):
-        RDD.wd.append(self.wide)
         if self.height == 0 :
+            RDD.wd.append(self.wide)
             self.height = len(RDD.wd)
         if (len(self.data) == 0 or not self.persist):
             for elem in self.parent1.iterator():
@@ -530,8 +527,8 @@ class Map(RDD):
 
 
     def iterator(self):
-        RDD.wd.append(self.wide)
         if self.height == 0 :
+            RDD.wd.append(self.wide)
             self.height = len(RDD.wd)
         if (len(self.data) == 0 or not self.persist):
             for elem in self.parent.iterator():
@@ -557,8 +554,8 @@ class Filter(RDD):
         self.cur_depend = None
 
     def iterator(self):
-        RDD.wd.append(self.wide)
         if self.height == 0 :
+            RDD.wd.append(self.wide)
             self.height = len(RDD.wd)
         if (len(self.data) == 0 or not self.persist):
             for _ in self.parent.iterator():

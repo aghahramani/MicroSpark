@@ -13,25 +13,38 @@ from os.path import isfile, join
 import sys
 from gevent import Greenlet
 
-def start_job(count,ob):
-    c = zerorpc.Client()
-    c.connect("tcp://127.0.0.1:"+str(count))
-    ttt = c.hello(ob)
-    return ttt
 
 
 
 
 class WorkerQueue(object):
 
+    g = None
+
     def __init__(self, n = 20 ):
         self.init_ip = 4242
         self.workers = [self.start_worker(self.init_ip+_) for _ in xrange(n)]
-        m = Master()
-        s = zerorpc.Server(m)
-        s.bind("tcp://0.0.0.0:"+ str('4241'))
-        gevent.spawn(s.run)
+        self.m = Master()
+        WorkerQueue.g = gevent.spawn(self.start_server,self.m)
+        self.gevent_list=[]
 
+    def start_job(self,count,ob):
+        c = zerorpc.Client()
+        c.connect("tcp://127.0.0.1:"+str(count))
+        ttt = c.hello(ob)
+        return ttt
+
+    def start_job_fail_test(self,count,ob):
+        c = zerorpc.Client()
+        c.connect("tcp://127.0.0.1:"+str(count))
+        ttt = c.hello_with_failure(ob)
+        return ttt
+
+
+    def start_server(self,m):
+        s = zerorpc.Server(m)
+        s.bind("tcp://127.0.0.1:4241")
+        s.run()
     def start_worker(self,port):
         #if port != 4247:
         system("./worker.py " +str(port) + " &" )
@@ -40,29 +53,49 @@ class WorkerQueue(object):
     def get_worker(self):
         return self.workers.pop(0)
 
+    def test(self):
+        return "test successful"
+
+    def get_g_list(self):
+        print self.gevent_list
+        return self.gevent_list
+
+    def get_init_ip(self):
+        return self.init_ip
 
     def add_failed_nodes(self,value):
+        geven_lis = []
         for i in value:
-            if self.ping(i):
-                continue
-            system("./worker.py " +str(i) + " force &" )
-            start_job(i,Parallel.para_worker_dict[i])
+            if i not in self.failed_nodes:
+                self.failed_nodes[i] = True
+                geven_lis.append(gevent.spawn(self.ping,i))
+        if len(geven_lis) > 0 :
+            gevent.joinall(geven_lis)
+            for i_index, i in enumerate(geven_lis):
+                if i.value == None:
+                    system("./worker.py " +str(value[i_index]) + " force &" )
+                    # g = self.gevent_list[value[i_index]-self.init_ip].start()
+                    # self.gevent_list[value[i_index]-self.init_ip] = g
+                    # self.gevent_list[value[i_index]-self.init_ip].join()
+                    # print g.value()
+                    self.gevent_list[value[i_index]-self.init_ip]=\
+                    gevent.spawn(self.start_job,value[i_index],Parallel.para_worker_dict[value[i_index]])
+
 
 
 
     def ping(self,value):
         c = self.create_connection(value)
-        try :
-            c.ping()
+        if c.ping():
+            if value in self.failed_nodes:
+                del self.failed_nodes[value]
             return True
-        except :
-            print sys.exc_info()[0]
-            return False
+
 
 
 
     def create_connection(self,value):
-        c = zerorpc.Client()
+        c = zerorpc.Client(timeout=5)
         c.connect("tcp://127.0.0.1:" + str(value))
         return c
 
@@ -70,7 +103,12 @@ class WorkerQueue(object):
 class Master(WorkerQueue):
 
     def __init__(self):
+        self.failed_nodes = {}
+        self.gevent_list = []
+        self.init_ip = 4242
         pass
+
+
 
 
 
@@ -81,6 +119,8 @@ class Parallel(object):
     def __init__(self,worker_queue):
         self.wq = worker_queue
         self.dependencies=[]
+        self.gevent_list = []
+        self.fail_test = False
 
     def textFile(self,mypath):
         files = [ join(mypath,f) for f in listdir(mypath) if isfile(join(mypath,f))]
@@ -136,13 +176,17 @@ class Parallel(object):
 
 
     def execute(self,parent):
-        g_list = []
         for i_index, i  in enumerate(parent):
             i_obj = self.serialize(i)
             Parallel.para_worker_dict[self.dependencies[i_index]] = i_obj
-            g_list.append(gevent.spawn(start_job,self.dependencies[i_index],i_obj))
-        gevent.joinall(g_list)
-        return [i.value for i in g_list]
+            if self.fail_test:
+                self.gevent_list.append(gevent.spawn(self.wq.start_job_fail_test,self.dependencies[i_index],i_obj))
+            else:
+                self.gevent_list.append(gevent.spawn(self.wq.start_job,self.dependencies[i_index],i_obj))
+        #self.wq.start_server()
+        self.wq.m.gevent_list = self.gevent_list
+        gevent.joinall(self.gevent_list)
+        return [i.value if i.value != None else []for i in self.gevent_list]
 
     def serialize(self,obj):
         output = StringIO.StringIO()
@@ -173,6 +217,28 @@ def join_sort_test():
 
 
 
+def failure_test(no_fail=False):
+    wq = WorkerQueue()
+    p = Parallel(wq)
+    if not no_fail:
+        p.fail_test = True
+    s = p.textFile('./Data')
+    s = p.map(s,lambda x : x.split())
+    s = p.flatmap(s, lambda x : [x , '1'])
+    s = p.groupbykey(s)
+    s = p.map(s, lambda x : [x[0] , sum(map(int,x[1]))])
+    s = p.filter(s,lambda x :  x[1] > 1000)
+    #s = p.sort(s)
+    s = p.execute(s)
+    for i in s :
+         for j in i :
+             print j[0], j[1]
+    
+
+
+def zero_rpc_exception_throw_test():
+    wq = WorkerQueue()
+    system('python zero_rpc_rais_test.py &')
 
 
 
@@ -181,7 +247,18 @@ def join_sort_test():
 
 if __name__ == '__main__':
 
-    join_sort_test()
+
+    #zero_rpc_exception_throw_test()
+    if len(sys.argv)>1:
+        if sys.argv[1] == 'fail':
+            failure_test()
+        else:
+            failure_test(no_fail=True)
+        WorkerQueue.g.join()
+    else:
+        join_sort_test()
+
+
 
 
 
