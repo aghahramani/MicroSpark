@@ -30,6 +30,11 @@ SUBNET_ID = "subnet-600b3f5a" #us east 1 c,
 IMAGE_ID = 'ami-0c372164'
 
 
+class EC2Worker(object):
+
+    def __init__(self,num_workers):
+        if (num_workers>2):
+            raise Exception("Don't put more than 2 workers because this gets expensive")
 
 
 class EC2WorkerManager(object):
@@ -171,6 +176,7 @@ class TestEC2(unittest.TestCase):
         ec2=EC2WorkerManager()
         ec2.start_worker();
         ec2.print_active_worker_info()
+        raw_input("Press Return To ShutDown Active Workers")
         ec2.shutdown_all_workers()
 
     def testS3(self):
