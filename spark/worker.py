@@ -27,7 +27,7 @@ class Worker(object):
             gevent.sleep(1)
 
     def hello_with_failure(self,objstr):
-        if sys.argv[1] == '4244':
+        if sys.argv[1] == '4244' or sys.argv[1] == '4243':
             s.close()
         else:
             input = StringIO.StringIO(objstr)
