@@ -238,16 +238,16 @@ def join_sort_test(ec2=False):
 def height_test():
     wq = WorkerQueue()
     p = Parallel(wq)
-    s = p.textFile('./Data_t')
+    s = p.textFile('./Data')
     s = p.map(s,lambda x : x.split())
     s = p.flatmap(s, lambda x : [x , '1'])
     p1 = Parallel(wq)
-    s1 = p1.textFile('./Data_t1')
+    s1 = p1.textFile('./Data1')
     s1 = p1.map(s1,lambda x : x.split())
     s1 = p1.flatmap(s1, lambda x : [x , '1'])
     s = p.join(p1,s1,s)
     p2 = Parallel(wq)
-    s2 = p2.textFile('./Data_t2')
+    s2 = p2.textFile('./Data2')
     s2 = p2.map(s2,lambda x : x.split())
     s2 = p2.flatmap(s2, lambda x : [x , '1'])
     #s = p.groupbykey(s)
@@ -343,6 +343,7 @@ if __name__ == '__main__':
     parse.add_argument("--nofail", action="store_true")
     parse.add_argument("--ec2", action="store_true")
     parse.add_argument("--pagerank",action="store_true")
+    parse.add_argument("--htest",action="store_true")
     args=parse.parse_args()
     #zero_rpc_exception_throw_test()
     if args.fail:
@@ -353,6 +354,8 @@ if __name__ == '__main__':
         WorkerQueue.g.join()
     elif args.pagerank:
         url_rank_test()
+    elif args.htest:
+        height_test()
     else:
         join_sort_test(ec2=args.ec2)
 
