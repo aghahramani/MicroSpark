@@ -7,6 +7,7 @@ apt-get install -y python-pip python-dev
 pip install boto
 pip install zerorpc
 pip install numpy
+pip install paramiko
 
 More info here : http://aws.amazon.com/sdk-for-python/
 
@@ -20,7 +21,9 @@ import boto.ec2
 import uuid
 import unittest
 from boto.s3.key import Key
-
+from os import listdir
+from os.path import isfile, join
+import paramiko
 
 class EC2Credentials(object):
     """This class contains the credentials of ec2 workers"""
@@ -47,7 +50,13 @@ class EC2WorkerManager(object):
         self.workers=[]
         self.worker_number=0
 
-    def put_file_in_s3(self,fn,f):
+    def put_dir_in_s3(self,dir,bucket):
+        files=[f for f in listdir(dir) if isfile(join(dir,f))]
+        for f in files:
+            self.put_file_in_s3(f)
+
+    def put_file_in_s3(self,fn):
+        s3f=open(fn,"r")
         for key in self.bucket.list():
             if (key.name == fn ):
                 self.keys[fn]=key
@@ -55,8 +64,9 @@ class EC2WorkerManager(object):
 
         k = Key(self.bucket)
         k.key = fn
-        k.set_contents_from_file(f)
-        self.keys[fn]=k;
+        k.set_contents_from_file(s3f)
+        self.keys[fn]=k
+        s3f.close()
 
     def delete_files_in_s3(self):
         for k in self.keys:
@@ -64,6 +74,13 @@ class EC2WorkerManager(object):
         for key in self.bucket.list():
             key.delete()
         self.s3.delete_bucket(self.bucket_name)
+
+    def copy_all_files_from_s3(self,dir=None):
+        for key in self.bucket.list():
+            if not(dir):
+                key.get_contents_to_filename(key.name)
+            else:
+                key.get_contents_to_filename(dir+"/"+key.name)
 
     def get_file_from_s3(self, fn, dest):
         self.keys[fn].get_contents_to_filename(dest)
@@ -92,22 +109,23 @@ class EC2WorkerManager(object):
             for inst in res.instances:
                 print inst
 
-    def list_workers(self):
-        """Lists all active ec2 workers"""
+    def run_command_on_worker(self,instance,cmd):
         pass
 
-    def shutdown_all_workers(self):
+    def list_workers(self):
+        """Lists all active ec2 workers"""
+        active=[]
         reservations = self.ec2.get_all_instances()
         print "instances",reservations
         for reserve in reservations:
             for inst in reserve.instances:
-                print "terminating %s %s" % (inst.id,inst.state)
                 if (inst.state=='running' or inst.state=='pending'):
-                    self.ec2.terminate_instances(inst.id)
+                    active.append(inst)
+        return active
 
-    def stop_worker(self,worker):
-        """Stops an ec2 worker.  To save money they should all be shut down after use """
-        pass
+    def shutdown_all_workers(self):
+        for inst in self.list_workers():
+            self.ec2.terminate_instances(inst.id)
 
     def make_micro_spark_group(self):
         groupName="microspark"
@@ -138,15 +156,12 @@ class TestEC2(unittest.TestCase):
         ec2=EC2WorkerManager()
         ec2.start_worker();
         ec2.print_active_worker_info()
-        raw_input("Please hit return to stop workers")
         ec2.shutdown_all_workers()
 
     def testS3(self):
         ec2=EC2WorkerManager()
         fn="test_basic.sh"
-        s3f=open(fn,"r")
-        ec2.put_file_in_s3(fn,s3f)
-        s3f.close()
+        ec2.put_file_in_s3(fn)
         tmp_file = "/tmp/"+fn
         if (os.path.exists(tmp_file)):
             os.remove(tmp_file)
