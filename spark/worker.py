@@ -51,6 +51,7 @@ class Worker(object):
             #workers not yet initialized but the other worker calls get_data on it. This is why we need this
             gevent.sleep(0.001)
         #print self.f,self.f.height,len(self.f.get_dependencies()),"-------------------------------"
+        #print "Asking from ", port, "I am ",self.f.get_id(), "Height is" , height
         for i in self.f.get_data(height) :
             if i  == None :
                 continue
@@ -61,6 +62,7 @@ class Worker(object):
             else:
                 if i :
                     temp.append(i)
+        #print "returning len of ", len(temp)
         return temp
 
 

@@ -164,14 +164,20 @@ class Parallel(object):
         return filter_list
 
 
-    def join(self,p1,parent1,parent2):
+    def join(self,p1,parent1,parent2,first_only = False):
         join_list = []
+        #print len(parent2)
+        if not first_only:
+            self.dependencies = sorted(set(self.dependencies + p1.dependencies))
+            p1.dependencies = self.dependencies
+        else:
+            self.dependencies = sorted(set(self.dependencies + p1.dependencies))
         for i in parent2:
             join_list.append(Join(i,parent1[0] )) # Another very tricky part, I will explain
         for i in parent1:
             join_list.append(Join(i,parent2[0]))# very very tricky part :D
-        self.dependencies = self.dependencies + p1.dependencies
-        p1.dependencies = self.dependencies + p1.dependencies
+        for i in join_list:
+            i.cur_depend = self.dependencies
         return join_list
 
 
@@ -225,6 +231,33 @@ def join_sort_test(ec2=False):
 
 
 
+def height_test():
+    wq = WorkerQueue()
+    p = Parallel(wq)
+    s = p.textFile('./Data_t')
+    s = p.map(s,lambda x : x.split())
+    s = p.flatmap(s, lambda x : [x , '1'])
+    p1 = Parallel(wq)
+    s1 = p1.textFile('./Data_t1')
+    s1 = p1.map(s1,lambda x : x.split())
+    s1 = p1.flatmap(s1, lambda x : [x , '1'])
+    s = p.join(p1,s1,s)
+    p2 = Parallel(wq)
+    s2 = p2.textFile('./Data_t2')
+    s2 = p2.map(s2,lambda x : x.split())
+    s2 = p2.flatmap(s2, lambda x : [x , '1'])
+    #s = p.groupbykey(s)
+    s = p.join(p2,s2,s)
+    #s = p.groupbykey(s)
+    s = p.map(s, lambda x : [x[0] , sum(map(int,x[1]))])
+    s = p.sort(s)
+    s = p.execute(s)
+    for i in s :
+         for j in i :
+             print j[0], j[1]
+
+def failure_test(no_fail=False):
+    wq = WorkerQueue()
 def failure_test(no_fail=False,ec2=False):
     if (ec2):
         wq=EC2Worker.EC2Worker()
@@ -252,6 +285,50 @@ def zero_rpc_exception_throw_test():
     system('python zero_rpc_rais_test.py &')
 
 
+def parseNeighbors(urls):
+    """Parses a urls pair string into urls pair."""
+    parts = urls.split()
+    return [parts[0], parts[1]]
+
+def computeContribs(urls, rank):
+    """Calculates URL contributions to the rank of other URLs."""
+    num_urls = len(urls)
+    temp = []
+    for url in urls:
+        temp.append( [url, rank / num_urls])
+    return temp
+
+def url_rank_test():
+    wq = WorkerQueue()
+    p = Parallel(wq)
+    lines = p.textFile('./urls')
+    links = p.map(lines,lambda urls: parseNeighbors(urls))
+    links = p.groupbykey(links)
+    p1 = Parallel(wq)
+    lines1 = p1.textFile('./urls')
+    links1 = p1.map(lines1,lambda urls: [parseNeighbors(urls)[0],1])
+    links1 = p1.groupbykey(links1)
+    links1 = p1.map(links1,lambda urls: [urls[0],sum(map(int, urls[1]))] )
+    links1 = p1.join(p,links1,links,first_only=True)
+    links1 = p1.map(links1,lambda x : [x[0], x[1] if type(x[1][0]) == int else [i for i in reversed(x[1])]])
+    links1 = p1.map(links1, lambda url_urls_rank: [url_urls_rank[0],[computeContribs(url_urls_rank[1][1:],
+                                                                                  int(url_urls_rank[1][0])),
+                                                                     url_urls_rank[1][1:]]])
+    links1 = p1.map(links1,lambda x : [x[0],int(sum(map(lambda x : x[1],(x[1][0])))),x[1][1]])
+    links1 = p1.map(links1, lambda x : [x[0],x[1]*0.85+0.15,x[2]])
+    for i in range(10):
+         links1 = p1.map(links1, lambda url_urls_rank: [url_urls_rank[0],[computeContribs(url_urls_rank[2][:],
+                                                                                     url_urls_rank[1]),
+                                                                       url_urls_rank[2][:]]])
+         links1 = p1.map(links1,lambda x : [x[0],(sum(map(lambda x : x[1],(x[1][0])))),x[1][1]])
+         links1 = p1.map(links1, lambda x : [x[0],x[1]*0.85+0.15,x[2]])
+    links1 = p1.map(links1 , lambda x : [x[1],x[0]])
+    links1 = p1.sort(links1)
+    links1 = p1.map(links1 , lambda x : [x[1]])
+    links1 = p1.execute(links1)
+    for i in links1 :
+         for j in i:
+             print j[0]
 
 
 
