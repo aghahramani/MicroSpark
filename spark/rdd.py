@@ -28,6 +28,7 @@ class RDD(object):
         depend2 = p2.get_dependencies()[:]
         res = depend1 + depend2
         res = sorted(res)
+        #print "self id",self.get_id(),"dependencies",res
         return res
 
     def set_id(self,port):
@@ -82,6 +83,7 @@ class RDD(object):
     def get_dependencies(self):
         if self.cur_depend == None:
             return self.parent.get_dependencies()
+        #print "return self cur depent" , self.cur_depend
         return self.cur_depend
 
     def get_cur_dependencies(self):
@@ -106,6 +108,7 @@ class RDD(object):
     def collect(self):
         RDD.wd=[]
         elements = []
+        self.height = 0
         for elem in self.iterator():
             elements.append(elem)
         return elements
@@ -139,7 +142,7 @@ class RDD(object):
         if self.data_wide == None:
             self.data_wide = 'setting'
             if self.c == None:
-                self.c = zerorpc.Client(timeout=5)
+                self.c = zerorpc.Client(timeout=10)
 
             fetched_data = []
             geven_lis = []
@@ -167,23 +170,23 @@ class RDD(object):
                     failed_list.append(potential_fail[i_index])
                     continue
                 fetched_data.extend(i.value)
-            while len(failed_list) != 0 :
-                self.connect_master([i for i in failed_list])
-                gevent.sleep(0.01)
-                geven_lis = []
-                potential_fail=[]
-                for i in failed_list:
-                    self.get_connection(i)
-                    geven_lis.append(gevent.spawn(self.c.get_data,[self.get_id(),turn],self.height,ser_hash,
-                                                        fetch_all,forced))
-                    potential_fail.append(i)
-                gevent.joinall(geven_lis)
-                failed_list = []
-                for i_index,i in enumerate(geven_lis):
-                    if i.value == None:
-                        failed_list.append(potential_fail[i_index])
-                        continue
-                    fetched_data.extend(i.value)
+            # while len(failed_list) != 0 :
+            #     self.connect_master([i for i in failed_list])
+            #     gevent.sleep(0.01)
+            #     geven_lis = []
+            #     potential_fail=[]
+            #     for i in failed_list:
+            #         self.get_connection(i)
+            #         geven_lis.append(gevent.spawn(self.c.get_data,[self.get_id(),turn],self.height,ser_hash,
+            #                                             fetch_all,forced))
+            #         potential_fail.append(i)
+            #     gevent.joinall(geven_lis)
+            #     failed_list = []
+            #     for i_index,i in enumerate(geven_lis):
+            #         if i.value == None:
+            #             failed_list.append(potential_fail[i_index])
+            #             continue
+            #         fetched_data.extend(i.value)
             self.data_wide = fetched_data
 
     def calculate_narrow(self):
@@ -224,9 +227,8 @@ class Sample(RDD):
         self.wide_count = 0
 
     def iterator(self):
-        if self.height == 0 :
-            RDD.wd.append(self.wide)
-            self.height = len(RDD.wd)
+        if self.parent.height != 0 :
+            self.parent.height = self.height +1
         self.calculate_narrow()
         if len(self.data) > 0 and self.status =='Done':
             if self.size < len(self.data) :
@@ -235,8 +237,6 @@ class Sample(RDD):
                 self.data = [self.data[i] for i in indexes]
 
         self.fetch_data(fetch_all=True)
-        #print "sample wide dependencies", len(self.get_dependencies())
-        #print "sample wide count", self.wide_count
         for i in self.data_wide:
             yield  i
 
@@ -256,14 +256,9 @@ class Join(RDD):
         self.wide_count = 0
 
     def iterator(self):
-        if self.height == 0 :
-            RDD.wd.append(self.wide)
-            self.height = len(RDD.wd)
+        self.parent.height = self.height +1
         if self.data_wide == None:
             self.calculate_narrow()
-            #print len(self.data)
-            #print "here"
-            self.cur_depend = self.merge_dependencies(self.parent,self.other)
             self.fetch_data()
             temp_dict = {}
             for i in self.data_wide :
@@ -297,13 +292,12 @@ class Sort(RDD):
 
     def iterator(self):
 
-        if self.height == 0 :
-            RDD.wd.append(self.wide)
-            self.height = len(RDD.wd)
+        self.parent.height = self.height +1
         if self.data_wide == None :
             s_sample = Sample(self.parent,size = 5)
             temp_parent = self.parent
             self.parent = s_sample
+            self.parent.height = self.height +1
             sample_data= []
             for i in s_sample.iterator():
                 sample_data.append(i)
@@ -327,7 +321,6 @@ class Sort(RDD):
                     break
                 bucket_length = len(temp_sorted)/depend_len
                 return (tmp /bucket_length) + first
-
             self.fetch_data(hashfunc= hash_func)
             self.data_wide = sorted(self.data_wide, reverse = self.reverse)
         for i in self.data_wide:
@@ -357,9 +350,7 @@ class GroupByKey(RDD):
 
 
     def iterator(self):
-        if self.height == 0 :
-            RDD.wd.append(self.wide)
-            self.height = len(RDD.wd)
+        self.parent.height = self.height +1
         if self.data_wide == None:
             self.calculate_narrow()
             #print self.get_id()
@@ -457,9 +448,7 @@ class FlatMap(RDD):
 
 
     def iterator(self):
-        if self.height == 0 :
-            RDD.wd.append(self.wide)
-            self.height = len(RDD.wd)
+        self.parent.height = self.height +1
         if (len(self.data) == 0 or not self.persist):
             for elem in self.parent.iterator():
                 if type(elem) == list:
@@ -493,9 +482,7 @@ class Union(RDD):
         self.cur_depend = None
 
     def iterator(self):
-        if self.height == 0 :
-            RDD.wd.append(self.wide)
-            self.height = len(RDD.wd)
+        self.parent.height = self.height +1
         if (len(self.data) == 0 or not self.persist):
             for elem in self.parent1.iterator():
                 if self.persist:
@@ -527,9 +514,7 @@ class Map(RDD):
 
 
     def iterator(self):
-        if self.height == 0 :
-            RDD.wd.append(self.wide)
-            self.height = len(RDD.wd)
+        self.parent.height = self.height +1
         if (len(self.data) == 0 or not self.persist):
             for elem in self.parent.iterator():
                 _ = self.func(elem)
@@ -554,9 +539,7 @@ class Filter(RDD):
         self.cur_depend = None
 
     def iterator(self):
-        if self.height == 0 :
-            RDD.wd.append(self.wide)
-            self.height = len(RDD.wd)
+        self.parent.height = self.height +1
         if (len(self.data) == 0 or not self.persist):
             for _ in self.parent.iterator():
                 if self.func(_) :

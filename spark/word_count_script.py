@@ -1,10 +1,12 @@
 from os import listdir
 from os.path import isfile, join
-
-mypath = './Data/'
-mypath1 = './Data1/'
-files = [ join(mypath,f) for f in listdir(mypath) if isfile(join(mypath,f)) ]
-files.extend([ join(mypath1,f) for f in listdir(mypath1) if isfile(join(mypath1,f)) ])
+import sys
+mypath = []
+for i in sys.argv[1:]:
+	mypath.append(i)
+files = []
+for i in mypath:
+	files.extend(join(i,f) for f in listdir(i) if isfile(join(i,f)))
 count_dict = {}	
 for file in files:
 	f = open(file, 'r')
