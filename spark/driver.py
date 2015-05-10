@@ -3,6 +3,7 @@ import pickle
 import StringIO
 import argparse
 import zerorpc
+import EC2Worker
 import cloudpickle
 
 from rdd import *
@@ -12,7 +13,6 @@ from os import system
 from os.path import isfile, join
 import sys
 from gevent import Greenlet
-from EC2Worker import EC2Worker
 
 
 
@@ -198,7 +198,7 @@ class Parallel(object):
 
 def join_sort_test(ec2=False):
     if (ec2):
-        wq=EC2Worker()
+        wq=EC2Worker.EC2Worker()
     else:
         wq = WorkerQueue()
     p = Parallel(wq)
@@ -227,7 +227,7 @@ def join_sort_test(ec2=False):
 
 def failure_test(no_fail=False,ec2=False):
     if (ec2):
-        wq=EC2Worker()
+        wq=EC2Worker.EC2Worker()
     else:
         wq = WorkerQueue()
     p = Parallel(wq)

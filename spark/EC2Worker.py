@@ -23,18 +23,110 @@ import unittest
 from boto.s3.key import Key
 from os import listdir
 from os.path import isfile, join
+import gevent
 import paramiko
+from driver import WorkerQueue
+import zerorpc
 
 REGION_NAME = "us-east-1"
 SUBNET_ID = "subnet-600b3f5a" #us east 1 c,
 IMAGE_ID = 'ami-0c372164'
 
+def p(tag,str):
+    print tag,str
 
-class EC2Worker(object):
+class EC2MicroSparkNode(object):
 
-    def __init__(self,num_workers):
+    def __init__(self,instance):
+        self.instance=instance
+        self.ip=instance.ip_address
+        self.wait_for_vm_to_be_ready()
+
+    def wait_for_vm_to_be_ready(self):
+        done=False
+        while (done==False):
+            done=True
+            i=self.instance
+            if (i.state=='pending'):
+                p("Status","Waiting for Node to Come Up, Usually takes about 15 seconds");
+                gevent.sleep(5)
+                i.update()
+                done=False
+            elif (i.state=='running'):
+                p("Status","Node is up")
+                break
+            else:
+                raise "Invalid Status "+i.status
+
+
+    def start_worker(self,port):
+        p("Starting Worker",self.ip+":"+str(port))
+        pass
+
+
+class EC2Worker(WorkerQueue):
+
+    def __init__(self,num_workers=1):
         if (num_workers>2):
             raise Exception("Don't put more than 2 workers because this gets expensive")
+        self.manager=EC2WorkerManager()
+        self.vms=[ EC2MicroSparkNode(n) for n in self.manager.list_workers()]
+        if (len(self.vms)>num_workers):
+            # We wil have to restart nodes but need to Prevent Spending Too Much Money By Accident
+            self.manager.shutdown_all_workers()
+            self.vms=[]
+        super(EC2Worker,self).__init__()
+
+    def ec2_instance_ip(self,num):
+        return "127.0.0.1"
+
+    def my_ip(self):
+        return "127.0.0.1"
+
+    def start_job(self,count,ob):
+        c = zerorpc.Client()
+        c.connect("tcp://"+self.ec2_instance_ip(0)+":"+str(count))
+        ttt = c.hello(ob)
+        return ttt
+
+    def start_job_fail_test(self,count,ob):
+        c = zerorpc.Client()
+        c.connect("tcp://"+self.ec2_instance_ip(0)+":"+str(count))
+        ttt = c.hello_with_failure(ob)
+        return ttt
+
+    def start_server(self,m):
+        s = zerorpc.Server(m)
+        s.bind("tcp://"+self.my_ip()+":4241")
+        s.run()
+
+    def start_worker(self,port):
+        if (len(self.vms)==0):
+            vm=EC2MicroSparkNode(self.manager.start_worker());
+            p("Started vm",vm)
+            self.vms.append(vm)
+
+        #p("VMS",self.vms)
+        self.vms[0].start_worker(port)
+        return [self.vms[0],port]
+
+    def get_worker(self):
+        if len(self.workers)==0:
+            self.workers.append(self.start_worker(self.init_port+self.n))
+            self.n +=1
+        return self.workers.pop(0)
+
+    def ping(self,value):
+        c = self.create_connection(value)
+        if c.ping():
+            if value in self.failed_nodes:
+                del self.failed_nodes[value]
+            return True
+
+    def create_connection(self,value):
+        c = zerorpc.Client(timeout=5)
+        c.connect("tcp://"+value[0]+":" + value[1])
+        return c
 
 
 class EC2WorkerManager(object):
@@ -128,8 +220,6 @@ class EC2WorkerManager(object):
             for inst in res.instances:
                 print inst
 
-    def run_command_on_worker(self,instance,cmd):
-        pass
 
     def list_workers(self):
         """Lists all active ec2 workers"""
