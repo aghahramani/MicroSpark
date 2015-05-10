@@ -1,7 +1,7 @@
 #!/usr/bin/python
 import pickle
 import StringIO
-
+import argparse
 import zerorpc
 import cloudpickle
 
@@ -12,7 +12,7 @@ from os import system
 from os.path import isfile, join
 import sys
 from gevent import Greenlet
-
+from EC2Worker import EC2Worker
 
 
 
@@ -90,9 +90,6 @@ class WorkerQueue(object):
             if value in self.failed_nodes:
                 del self.failed_nodes[value]
             return True
-
-
-
 
     def create_connection(self,value):
         c = zerorpc.Client(timeout=5)
@@ -196,8 +193,11 @@ class Parallel(object):
 
 
 
-def join_sort_test():
-    wq = WorkerQueue()
+def join_sort_test(ec2=False):
+    if (ec2):
+        wq=EC2Worker()
+    else:
+        wq = WorkerQueue()
     p = Parallel(wq)
     s = p.textFile('./Data')
     s = p.map(s,lambda x : x.split())
@@ -217,8 +217,11 @@ def join_sort_test():
 
 
 
-def failure_test(no_fail=False):
-    wq = WorkerQueue()
+def failure_test(no_fail=False,ec2=False):
+    if (ec2):
+        wq=EC2Worker()
+    else:
+        wq = WorkerQueue()
     p = Parallel(wq)
     if not no_fail:
         p.fail_test = True
@@ -247,16 +250,20 @@ def zero_rpc_exception_throw_test():
 
 if __name__ == '__main__':
 
-
+    parse=argparse.ArgumentParser()
+    parse.add_argument("--fail", action="store_true")
+    parse.add_argument("--nofail", action="store_true")
+    parse.add_argument("--ec2", action="store_true")
+    args=parse.parse_args()
     #zero_rpc_exception_throw_test()
-    if len(sys.argv)>1:
-        if sys.argv[1] == 'fail':
-            failure_test()
-        else:
-            failure_test(no_fail=True)
+    if args.fail:
+        failure_test(ec2=args.ec2)
+        WorkerQueue.g.join()
+    elif args.nofail:
+        failure_test(ec2=args.ec2,no_fail=True)
         WorkerQueue.g.join()
     else:
-        join_sort_test()
+        join_sort_test(ec2=args.ec2)
 
 
 
