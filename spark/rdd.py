@@ -142,7 +142,7 @@ class RDD(object):
         if self.data_wide == None:
             self.data_wide = 'setting'
             if self.c == None:
-                self.c = zerorpc.Client(timeout=10)
+                self.c = zerorpc.Client(timeout=3)
 
             fetched_data = []
             geven_lis = []
@@ -170,23 +170,23 @@ class RDD(object):
                     failed_list.append(potential_fail[i_index])
                     continue
                 fetched_data.extend(i.value)
-            # while len(failed_list) != 0 :
-            #     self.connect_master([i for i in failed_list])
-            #     gevent.sleep(0.01)
-            #     geven_lis = []
-            #     potential_fail=[]
-            #     for i in failed_list:
-            #         self.get_connection(i)
-            #         geven_lis.append(gevent.spawn(self.c.get_data,[self.get_id(),turn],self.height,ser_hash,
-            #                                             fetch_all,forced))
-            #         potential_fail.append(i)
-            #     gevent.joinall(geven_lis)
-            #     failed_list = []
-            #     for i_index,i in enumerate(geven_lis):
-            #         if i.value == None:
-            #             failed_list.append(potential_fail[i_index])
-            #             continue
-            #         fetched_data.extend(i.value)
+            while len(failed_list) != 0 :
+                self.connect_master([i for i in failed_list])
+                gevent.sleep(0.01)
+                geven_lis = []
+                potential_fail=[]
+                for i in failed_list:
+                    self.get_connection(i)
+                    geven_lis.append(gevent.spawn(self.c.get_data,[self.get_id(),turn],self.height,ser_hash,
+                                                        fetch_all,forced))
+                    potential_fail.append(i)
+                gevent.joinall(geven_lis)
+                failed_list = []
+                for i_index,i in enumerate(geven_lis):
+                    if i.value == None:
+                        failed_list.append(potential_fail[i_index])
+                        continue
+                    fetched_data.extend(i.value)
             self.data_wide = fetched_data
 
     def calculate_narrow(self):

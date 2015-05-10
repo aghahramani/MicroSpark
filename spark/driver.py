@@ -192,6 +192,10 @@ class Parallel(object):
         #self.wq.start_server()
         self.wq.m.gevent_list = self.gevent_list
         gevent.joinall(self.gevent_list)
+        count = 1
+        while count != 0 :
+            count = 0
+            count += sum([0 if i.value != None else 1 for i in self.gevent_list])
         return [i.value if i.value != None else []for i in self.gevent_list]
 
     def serialize(self,obj):
