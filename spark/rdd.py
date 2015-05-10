@@ -139,7 +139,7 @@ class RDD(object):
         if self.data_wide == None:
             self.data_wide = 'setting'
             if self.c == None:
-                self.c = zerorpc.Client(timeout=3)
+                self.c = zerorpc.Client(timeout=5)
 
             fetched_data = []
             geven_lis = []

@@ -21,12 +21,13 @@ class WorkerQueue(object):
 
     g = None
 
-    def __init__(self, n = 20 ):
+    def __init__(self, n = 40 ):
         self.init_ip = 4242
         self.workers = [self.start_worker(self.init_ip+_) for _ in xrange(n)]
         self.m = Master()
         WorkerQueue.g = gevent.spawn(self.start_server,self.m)
         self.gevent_list=[]
+        self.n = 20
 
     def start_job(self,count,ob):
         c = zerorpc.Client()
@@ -51,6 +52,9 @@ class WorkerQueue(object):
         return port
 
     def get_worker(self):
+        if len(self.workers)==0:
+            self.workers.append(self.start_worker(self.init_ip+self.n))
+            self.n +=1
         return self.workers.pop(0)
 
     def test(self):
@@ -163,15 +167,14 @@ class Parallel(object):
         return filter_list
 
 
-    def join(self,parent1,parent2):
+    def join(self,p1,parent1,parent2):
         join_list = []
         for i in parent2:
             join_list.append(Join(i,parent1[0] )) # Another very tricky part, I will explain
         for i in parent1:
             join_list.append(Join(i,parent2[0]))# very very tricky part :D
-        temp1 = parent2[0].get_dependencies()[:]
-        temp = parent1[0].get_dependencies()[:]
-        self.dependencies = temp1+temp
+        self.dependencies = self.dependencies + p1.dependencies
+        p1.dependencies = self.dependencies + p1.dependencies
         return join_list
 
 
@@ -206,8 +209,13 @@ def join_sort_test():
     s1 = p1.textFile('./Data1')
     s1 = p1.map(s1,lambda x : x.split())
     s1 = p1.flatmap(s1, lambda x : [x , '1'])
-    s = p.join(s1,s)
+    s = p.join(p1,s1,s)
+    p2 = Parallel(wq)
+    s2 = p2.textFile('./Data2')
+    s2 = p2.map(s2,lambda x : x.split())
+    s2 = p2.flatmap(s2, lambda x : [x , '1'])
     #s = p.groupbykey(s)
+    #s = p.join(p2,s2,s)
     s = p.map(s, lambda x : [x[0] , sum(map(int,x[1]))])
     s = p.sort(s)
     s = p.execute(s)
@@ -233,7 +241,7 @@ def failure_test(no_fail=False):
     for i in s :
          for j in i :
              print j[0], j[1]
-    
+
 
 
 def zero_rpc_exception_throw_test():
