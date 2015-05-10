@@ -31,6 +31,7 @@ import zerorpc
 REGION_NAME = "us-east-1"
 SUBNET_ID = "subnet-600b3f5a" #us east 1 c,
 IMAGE_ID = 'ami-0c372164'
+FILES_BUCKET = 'micro-spark-project'
 
 def p(tag,str):
     print tag,str
@@ -41,6 +42,7 @@ class EC2MicroSparkNode(object):
         self.instance=instance
         self.ip=instance.ip_address
         self.wait_for_vm_to_be_ready()
+        self.ports=[]
 
     def wait_for_vm_to_be_ready(self):
         done=False
@@ -58,9 +60,12 @@ class EC2MicroSparkNode(object):
             else:
                 raise "Invalid Status "+i.status
 
+    def url(self,port):
+        return "tcp://"+self.ip+":"+str(port)
 
     def start_worker(self,port):
-        p("Starting Worker",self.ip+":"+str(port))
+        self.ports.append(port)
+        p("Starting Worker",self.url(port))
         pass
 
 
@@ -85,7 +90,8 @@ class EC2Worker(WorkerQueue):
 
     def start_job(self,count,ob):
         c = zerorpc.Client()
-        c.connect("tcp://"+self.ec2_instance_ip(0)+":"+str(count))
+        print count
+        c.connect(count)
         ttt = c.hello(ob)
         return ttt
 
@@ -103,12 +109,13 @@ class EC2Worker(WorkerQueue):
     def start_worker(self,port):
         if (len(self.vms)==0):
             vm=EC2MicroSparkNode(self.manager.start_worker());
+            self.manager.copy_all_files_from_s3(FILES_BUCKET)
             p("Started vm",vm)
             self.vms.append(vm)
 
         #p("VMS",self.vms)
         self.vms[0].start_worker(port)
-        return [self.vms[0],port]
+        return self.vms[0].url(port)
 
     def get_worker(self):
         if len(self.workers)==0:
@@ -135,7 +142,7 @@ class EC2WorkerManager(object):
         """Initialize the ec2 worker with the user's ec2 credentials from ~/.aws/credentials """
         self.s3 = boto.connect_s3()
         self.ec2 = boto.ec2.connect_to_region(REGION_NAME)
-        self.bucket_name = "micro-spark-project"
+        self.bucket_name = FILES_BUCKET
         self.bucket = self.s3.create_bucket(self.bucket_name)
         self.keys={}
         self.workers=[]

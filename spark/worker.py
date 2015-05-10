@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import StringIO
+import argparse
 import pickle
 import sys
 import cloudpickle
@@ -72,8 +73,15 @@ class Worker(object):
         return g.value
 
 
+if __name__ == '__main__':
 
-s = zerorpc.Server(Worker())
-
-s.bind("tcp://127.0.0.1:"+ sys.argv[1])
-s.run()
+    parse=argparse.ArgumentParser()
+    parse.add_argument("--ec2", action="store_true")
+    parse.add_argument("port", help="port",type=int)
+    args=parse.parse_args()
+    s = zerorpc.Server(Worker())
+    if (args.ec2):
+        s.bind("tcp://0.0.0.0:"+ str(args.port))
+    else:
+        s.bind("tcp://127.0.0.1:"+ str(args.port))
+    s.run()
