@@ -256,8 +256,7 @@ def height_test():
          for j in i :
              print j[0], j[1]
 
-def failure_test(no_fail=False):
-    wq = WorkerQueue()
+
 def failure_test(no_fail=False,ec2=False):
     if (ec2):
         wq=EC2Worker.EC2Worker()
@@ -339,6 +338,7 @@ if __name__ == '__main__':
     parse.add_argument("--fail", action="store_true")
     parse.add_argument("--nofail", action="store_true")
     parse.add_argument("--ec2", action="store_true")
+    parse.add_argument("--pagerank",action="store_true")
     args=parse.parse_args()
     #zero_rpc_exception_throw_test()
     if args.fail:
@@ -347,6 +347,8 @@ if __name__ == '__main__':
     elif args.nofail:
         failure_test(ec2=args.ec2,no_fail=True)
         WorkerQueue.g.join()
+    elif args.pagerank:
+        url_rank_test()
     else:
         join_sort_test(ec2=args.ec2)
 
