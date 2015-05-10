@@ -25,17 +25,11 @@ from os import listdir
 from os.path import isfile, join
 import paramiko
 
-class EC2Credentials(object):
-    """This class contains the credentials of ec2 workers"""
-    def __init__(self):
-        pass
+REGION_NAME = "us-east-1"
+SUBNET_ID = "subnet-600b3f5a" #us east 1 c,
+IMAGE_ID = 'ami-0c372164'
 
-class EC2Worker(object):
-    """This class represents an active ec2 EC2Worker """
 
-    def distribute_file(self,fn):
-        """ Distributes a file to an ec2 worker via s3"""
-        pass
 
 
 class EC2WorkerManager(object):
@@ -43,12 +37,28 @@ class EC2WorkerManager(object):
     def __init__(self):
         """Initialize the ec2 worker with the user's ec2 credentials from ~/.aws/credentials """
         self.s3 = boto.connect_s3()
-        self.ec2 = boto.ec2.connect_to_region("us-east-1")
+        self.ec2 = boto.ec2.connect_to_region(REGION_NAME)
         self.bucket_name = "micro-spark-project"
         self.bucket = self.s3.create_bucket(self.bucket_name)
         self.keys={}
         self.workers=[]
         self.worker_number=0
+
+    def auto_deploy_server(self,data_dir=["Data","Data1"],code_dir=".",program="worker.py"):
+        code_files=[f for f in listdir(code_dir) if isfile(join(dir,f)) and f.endswith("*.py")]
+        for d in data_dir:
+            self.put_dir_in_s3(data_dir)
+        for c in code_files:
+            self.put_file_in_s3(c)
+        reserve=self.start_worker()
+        self.download_s3_files_on_worker(self.bucket_name)
+        self.start_worker_process()
+
+    def start_worker_process(self):
+        pass
+
+    def download_s3_files_on_worker(self, bucket_name):
+        pass
 
     def put_dir_in_s3(self,dir,bucket):
         files=[f for f in listdir(dir) if isfile(join(dir,f))]
@@ -91,15 +101,19 @@ class EC2WorkerManager(object):
         group=self.make_micro_spark_group()
         print "group",group
         print "Creating instance with security group ",group
-        self.workers.append(self.ec2.run_instances(
-        'ami-0c372164',
-        key_name='microspark',
-        instance_type='t2.micro',
-        subnet_id="subnet-600b3f5a", #us east 1 c,
-        security_group_ids=["sg-c0aa8da4"]))
+        reserve=self.ec2.run_instances(
+            IMAGE_ID,
+            key_name='microspark',
+            instance_type='t2.micro',
+            subnet_id=SUBNET_ID,
+            security_group_ids=[str(group.id)])
+
+        self.workers.append(reserve)
+
         print "started instance:"
         print self.workers
         self.worker_number+=1
+        return reserve
 
         pass
     def print_active_worker_info(self):
@@ -122,6 +136,7 @@ class EC2WorkerManager(object):
                 if (inst.state=='running' or inst.state=='pending'):
                     active.append(inst)
         return active
+
 
     def shutdown_all_workers(self):
         for inst in self.list_workers():
