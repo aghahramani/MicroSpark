@@ -103,7 +103,7 @@ class EC2MicroSparkNode(object):
     def start_worker(self,port):
         self.ports.append(port)
         p("Starting Worker",self.url(port))
-        cmd = "cd microspark/spark; nohup python ./worker.py --ec2 "+str(port)+" &"
+        cmd = "cd microspark/spark; nohup python ./worker.py  "+str(port)+" --ec2 > log-"+str(port)+".log &"
         self.exec_ssh_command(cmd)
 
 

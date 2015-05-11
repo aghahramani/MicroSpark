@@ -6,8 +6,11 @@ import sys
 import cloudpickle
 import gevent
 import zerorpc
-
 import rdd
+
+#for logging zerorpc errors
+import logging
+logging.basicConfig()
 
 class Worker(object):
 
@@ -27,20 +30,20 @@ class Worker(object):
             gevent.sleep(1)
 
     def hello_with_failure(self,objstr):
-        if sys.argv[1] == '4244' or sys.argv[1] == '4243':
+        if args.port == '4244' or args.port == '4243':
             s.close()
         else:
             input = StringIO.StringIO(objstr)
             unpickler = pickle.Unpickler(input)
             self.f = unpickler.load()
-            self.f.set_id(sys.argv[1])
+            self.f.set_id(args.port)
             return self.f.collect()
 
     def hello(self, objstr):
         input = StringIO.StringIO(objstr)
         unpickler = pickle.Unpickler(input)
         self.f = unpickler.load()
-        self.f.set_id(sys.argv[1])
+        self.f.set_id(args.port)
         return self.f.collect()
 
     def get_data_async(self,port,height,hash_func,fetch_all = False, forced = False):
