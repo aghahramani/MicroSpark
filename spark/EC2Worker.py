@@ -102,8 +102,8 @@ class EC2MicroSparkNode(object):
         scp.close()
         cmd = "cd microspark/spark; python ./Bootstrap.py "+FILES_BUCKET
         self.exec_ssh_command(cmd)
-        cmd = "killall -9 python"
-        self.exec_ssh_command(cmd)
+#        cmd = "killall -9 python"
+#        self.exec_ssh_command(cmd)
 
     def url(self,port):
         return "tcp://"+self.ip+":"+str(port)
@@ -111,7 +111,7 @@ class EC2MicroSparkNode(object):
     def start_worker(self,port):
         self.ports.append(port)
         p("Starting Worker",self.url(port))
-        cmd = "cd microspark/spark; sh run_worker.sh "+str(port)+"&"
+        cmd = "cd microspark/spark; nohup ./worker.py "+str(port)+"&"
         self.exec_ssh_command(cmd)
 
 
@@ -126,31 +126,20 @@ class EC2Worker(WorkerQueue):
             # We wil have to restart nodes but need to Prevent Spending Too Much Money By Accident
             self.manager.shutdown_all_workers()
             self.vms=[]
-        super(EC2Worker,self).__init__(n=2)
-        self.n=2
+        self.portmap={}
+        super(EC2Worker,self).__init__()
 
-    def ec2_instance_ip(self,num):
-        return "127.0.0.1"
-
-    def my_ip(self):
-        return "127.0.0.1"
-
-    def start_job(self,count,ob):
+    def connect(self,value):
         c = zerorpc.Client()
-        print count
-        c.connect(count)
-        ttt = c.hello(ob)
-        return ttt
-
-    def start_job_fail_test(self,count,ob):
-        c = zerorpc.Client()
-        c.connect("tcp://"+self.ec2_instance_ip(0)+":"+str(count))
-        ttt = c.hello_with_failure(ob)
-        return ttt
+        value=self.portmap[value]
+        print "connecting to "+str(value)
+        c.connect(value)
+        #c.connect("tcp://172.30.0.137:"+str(value))
+        return c
 
     def start_server(self,m):
         s = zerorpc.Server(m)
-        s.bind("tcp://"+self.my_ip()+":4241")
+        s.bind("tcp://0.0.0.0:4241")
         s.run()
 
     def start_worker(self,port):
@@ -162,24 +151,16 @@ class EC2Worker(WorkerQueue):
 
         #p("VMS",self.vms)
         self.vms[0].start_worker(port)
-        return self.vms[0].url(port)
+        self.portmap[port]=self.vms[0].url(port)
+        return port
 
-    def get_worker(self):
-        if len(self.workers)==0:
-            self.workers.append(self.start_worker(self.init_ip+self.n))
-            self.n +=1
-        return self.workers.pop(0)
-
-    def ping(self,value):
-        c = self.create_connection(value)
-        if c.ping():
-            if value in self.failed_nodes:
-                del self.failed_nodes[value]
-            return True
 
     def create_connection(self,value):
         c = zerorpc.Client(timeout=5)
-        c.connect("tcp://"+value[0]+":" + value[1])
+        print "connecting to "+str(value)
+        value=self.portmap[value]
+        c.connect(value)
+        #c.connect("tcp://172.30.0.137:"+str(value))
         return c
 
 

@@ -29,15 +29,18 @@ class WorkerQueue(object):
         self.gevent_list=[]
         self.n = 20
 
-    def start_job(self,count,ob):
+    def connect(self,count):
         c = zerorpc.Client()
         c.connect("tcp://"+LOCALHOST+":"+str(count))
+        return c
+
+    def start_job(self,count,ob):
+        c=self.connect(count)
         ttt = c.hello(ob)
         return ttt
 
     def start_job_fail_test(self,count,ob):
-        c = zerorpc.Client()
-        c.connect("tcp://"+LOCALHOST+":"+str(count))
+        c=self.connect(count)
         ttt = c.hello_with_failure(ob)
         return ttt
 
@@ -46,6 +49,7 @@ class WorkerQueue(object):
         s = zerorpc.Server(m)
         s.bind("tcp://"+LOCALHOST+":4241")
         s.run()
+
     def start_worker(self,port):
         #if port != 4247:
         system("./worker.py " +str(port) + " &" )
