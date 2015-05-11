@@ -33,7 +33,8 @@ from scp import SCPClient
 KEY_FILE = "microspark.pem"
 REGION_NAME = "us-east-1"
 SUBNET_ID = "subnet-600b3f5a" #us east 1 c,
-IMAGE_ID = 'ami-0c372164'
+#IMAGE_ID = 'ami-0c372164'
+IMAGE_ID= 'ami-8a6a7be2'
 FILES_BUCKET = 'micro-spark-project'
 
 def p(tag,str):
@@ -89,6 +90,12 @@ class EC2MicroSparkNode(object):
         scp = SCPClient(self.ssh.get_transport())
         scp.put("microspark-aws-credentials","/home/ubuntu/.aws/credentials")
         scp.close()
+
+        scp = SCPClient(self.ssh.get_transport())
+        scp.put("microspark-aws-credentials","/home/ubuntu/.boto")
+        scp.close()
+
+
         scp = SCPClient(self.ssh.get_transport())
         scp.put("Bootstrap.py","/home/ubuntu/microspark/spark/Bootstrap.py")
         scp.close()
@@ -103,7 +110,7 @@ class EC2MicroSparkNode(object):
     def start_worker(self,port):
         self.ports.append(port)
         p("Starting Worker",self.url(port))
-        cmd = "cd microspark/spark; nohup python ./worker.py  "+str(port)+" --ec2 > log-"+str(port)+".log &"
+        cmd = "cd microspark/spark; nohup python ./worker.py  "+str(port)+" --ec2 2>&1> log-"+str(port)+".log &"
         self.exec_ssh_command(cmd)
 
 
@@ -118,7 +125,8 @@ class EC2Worker(WorkerQueue):
             # We wil have to restart nodes but need to Prevent Spending Too Much Money By Accident
             self.manager.shutdown_all_workers()
             self.vms=[]
-        super(EC2Worker,self).__init__(n=5)
+        super(EC2Worker,self).__init__(n=2)
+        self.n=2
 
     def ec2_instance_ip(self,num):
         return "127.0.0.1"

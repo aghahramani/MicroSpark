@@ -29,7 +29,6 @@ class Bootstrap(object):
                 if (not(os.path.exists(os.path.dirname(key.name)))):
                     os.mkdir(os.path.dirname(key.name))
             key.get_contents_to_filename(key.name)
-        print(socket.gethostname(),socket.dom)
 
 def usage():
     print "Usage: "+"Bootstrap.py <s3 bucket> <port>"

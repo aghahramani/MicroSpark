@@ -5,6 +5,12 @@ import StringIO
 import cloudpickle
 import sys
 
+#Hack for dealing with ip+port when remote and port when local
+def get_port(s):
+    if (str(s).startswith("tcp")):
+        return int(s.split(":")[2])
+    return s
+
 #!/usr/bin/python
 class RDD(object):
 
@@ -138,7 +144,7 @@ class RDD(object):
             first = self.get_dependencies()[0]
             depend_len = len(self.get_dependencies())
             def default_hash(x):
-                return hash(x)% depend_len + first
+                return hash(x)% depend_len + get_port(first)
             hashfunc = default_hash
         ser_hash = self.serialize(hashfunc)
         potential_fail = []
