@@ -46,6 +46,7 @@ class EC2MicroSparkNode(object):
     def __init__(self,instance):
         self.instance=instance
         self.ip=instance.private_ip_address
+        self.ssh=None
         self.wait_for_vm_to_be_ready()
         self.ports=[]
 
@@ -65,11 +66,15 @@ class EC2MicroSparkNode(object):
                 p("Status","Node is up")
                 if pending:
                     #Sometimes these take a while to come up
+                    self.ssh = self.create_ssh()
                     gevent.sleep(30)
                     self.bootstrap()
-                break
+                    break
             else:
                 raise "Invalid Status "+i.status
+            if (not(self.ssh)):
+                self.ssh = self.create_ssh()
+
 
     def create_ssh(self):
         ssh = paramiko.SSHClient()
@@ -91,7 +96,6 @@ class EC2MicroSparkNode(object):
     def bootstrap(self):
         """ Copy credentials and Bootstrap.py to server and call Bootstrap.py to download deployment bucket """
         p("Bootstrap",self.ip)
-        self.ssh = self.create_ssh()
 
         scp = SCPClient(self.ssh.get_transport())
         scp.put("microspark-aws-credentials","/home/ubuntu/.aws/credentials")
@@ -107,8 +111,8 @@ class EC2MicroSparkNode(object):
         scp.close()
         cmd = "cd microspark/spark; python ./Bootstrap.py "+FILES_BUCKET
         self.exec_ssh_command(cmd)
-#        cmd = "killall -9 python"
-#        self.exec_ssh_command(cmd)
+        cmd = "killall -9 python"
+        self.exec_ssh_command(cmd)
 
     def url(self,port):
         return "tcp://"+self.ip+":"+str(port)
