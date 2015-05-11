@@ -193,7 +193,7 @@ class EC2WorkerManager(object):
         self.workers=[]
         self.worker_number=0
 #Uncomment to redeploy
-        self.delete_files_in_s3();
+#        self.delete_files_in_s3();
         self.copy_deployment_to_s3()
 
 

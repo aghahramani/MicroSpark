@@ -29,7 +29,8 @@ class Worker(object):
             print "[Contoller]"
             gevent.sleep(1)
 
-    def hello_with_failure(self,objstr):
+    def hello_with_failure(self,objstr,port_to_url):
+        rdd.RDD.port_to_url=port_to_url
         if args.port == '4244' or args.port == '4243':
             s.close()
         else:
@@ -39,7 +40,8 @@ class Worker(object):
             self.f.set_id(args.port)
             return self.f.collect()
 
-    def hello(self, objstr):
+    def hello(self, objstr,port_to_url):
+        rdd.RDD.port_to_url=port_to_url
         input = StringIO.StringIO(objstr)
         unpickler = pickle.Unpickler(input)
         self.f = unpickler.load()

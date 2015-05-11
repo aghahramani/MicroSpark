@@ -36,13 +36,13 @@ class WorkerQueue(object):
 
     def start_job(self,count,ob):
         c=self.connect(count)
-        ttt = c.hello(ob)
+        ttt = c.hello(ob,RDD.port_to_url)
         c.close()
         return ttt
 
     def start_job_fail_test(self,count,ob):
         c=self.connect(count)
-        ttt = c.hello_with_failure(ob)
+        ttt = c.hello_with_failure(ob,RDD.port_to_url)
         c.close()
         return ttt
 
