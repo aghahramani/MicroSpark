@@ -37,11 +37,13 @@ class WorkerQueue(object):
     def start_job(self,count,ob):
         c=self.connect(count)
         ttt = c.hello(ob)
+        c.close()
         return ttt
 
     def start_job_fail_test(self,count,ob):
         c=self.connect(count)
         ttt = c.hello_with_failure(ob)
+        c.close()
         return ttt
 
 
@@ -95,9 +97,11 @@ class WorkerQueue(object):
     def ping(self,value):
         c = self.create_connection(value)
         if c.ping():
+            c.close()
             if value in self.failed_nodes:
                 del self.failed_nodes[value]
             return True
+        c.close()
 
     def create_connection(self,value):
         c = zerorpc.Client(timeout=5)
