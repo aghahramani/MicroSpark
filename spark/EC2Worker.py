@@ -292,8 +292,8 @@ class EC2WorkerManager(object):
                         cidr_ip="0.0.0.0/0",
                         src_group=None)
         group.authorize(ip_protocol="tcp",
-                        to_port="4242",
-                        from_port="4242",
+                        to_port="4000",
+                        from_port="5000",
                         cidr_ip="0.0.0.0/0",
                         src_group=None)
         return group
