@@ -26,6 +26,7 @@ from os.path import isfile, join
 import gevent
 import paramiko
 import select
+import rdd
 from driver import WorkerQueue
 import zerorpc
 from scp import SCPClient
@@ -63,7 +64,7 @@ class EC2MicroSparkNode(object):
                 break
             else:
                 raise "Invalid Status "+i.status
-        gevent.sleep(5)
+        gevent.sleep(30)
         self.bootstrap()
 
     def create_ssh(self):
@@ -111,13 +112,14 @@ class EC2MicroSparkNode(object):
     def start_worker(self,port):
         self.ports.append(port)
         p("Starting Worker",self.url(port))
-        cmd = "cd microspark/spark; nohup ./worker.py "+str(port)+"&"
+        cmd = "cd microspark/spark; nohup python ./worker.py --master "+rdd.RDD.master+" "+str(port)+"&"
+        print "running "+cmd
         self.exec_ssh_command(cmd)
 
 
 class EC2Worker(WorkerQueue):
 
-    def __init__(self,num_workers=1):
+    def __init__(self,num_workers=2):
         if (num_workers>2):
             raise Exception("Don't put more than 2 workers because this gets expensive")
         self.manager=EC2WorkerManager()
@@ -143,15 +145,16 @@ class EC2Worker(WorkerQueue):
         s.run()
 
     def start_worker(self,port):
-        if (len(self.vms)==0):
+        if (len(self.vms)<2):
             self.manager.copy_deployment_to_s3()
             vm=EC2MicroSparkNode(self.manager.start_worker().instances[0])
             p("Started vm",vm)
             self.vms.append(vm)
 
         #p("VMS",self.vms)
-        self.vms[0].start_worker(port)
-        self.portmap[port]=self.vms[0].url(port)
+        vmpick=port%len(self.vms)
+        self.vms[vmpick].start_worker(port)
+        self.portmap[port]=self.vms[vmpick].url(port)
         return port
 
 
@@ -175,6 +178,7 @@ class EC2WorkerManager(object):
         self.keys={}
         self.workers=[]
         self.worker_number=0
+#        self.delete_files_in_s3();
         self.copy_deployment_to_s3()
 
 

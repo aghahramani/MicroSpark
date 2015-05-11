@@ -81,7 +81,11 @@ if __name__ == '__main__':
     parse=argparse.ArgumentParser()
     parse.add_argument("--ec2", action="store_true")
     parse.add_argument("port", help="port",type=int)
+    parse.add_argument("--master")
     args=parse.parse_args()
+    if (args.master):
+        rdd.master=args.master
+
     s = zerorpc.Server(Worker())
     s.bind("tcp://0.0.0.0:"+ str(args.port))
     s.run()

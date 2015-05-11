@@ -19,7 +19,7 @@ class Bootstrap(object):
     def __init__(self,bucket):
         self.bucket=bucket
 
-    def copy_files_and_run(self,port):
+    def copy_files_and_run(self):
         self.s3 = boto.connect_s3()
         bucket=self.s3.get_bucket(self.bucket)
         for key in bucket.list():
@@ -41,4 +41,4 @@ if __name__ == '__main__':
         exit()
 
     b=Bootstrap(sys.argv[1])
-    b.copy_files_and_run(sys.argv[2])
+    b.copy_files_and_run()
