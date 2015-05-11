@@ -152,7 +152,7 @@ class EC2Worker(WorkerQueue):
             self.vms.append(vm)
 
         #p("VMS",self.vms)
-        vmpick=port%len(self.vms)
+        vmpick=0 # this doesn't work yet # port%len(self.vms)
         self.vms[vmpick].start_worker(port)
         self.portmap[port]=self.vms[vmpick].url(port)
         return port
