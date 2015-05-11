@@ -83,8 +83,5 @@ if __name__ == '__main__':
     parse.add_argument("port", help="port",type=int)
     args=parse.parse_args()
     s = zerorpc.Server(Worker())
-    if (args.ec2):
-        s.bind("tcp://0.0.0.0:"+ str(args.port))
-    else:
-        s.bind("tcp://127.0.0.1:"+ str(args.port))
+    s.bind("tcp://0.0.0.0:"+ str(args.port))
     s.run()

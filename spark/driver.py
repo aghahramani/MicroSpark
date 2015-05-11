@@ -15,7 +15,7 @@ import sys
 from gevent import Greenlet
 
 
-
+LOCALHOST="127.0.0.1"
 
 class WorkerQueue(object):
 
@@ -31,20 +31,20 @@ class WorkerQueue(object):
 
     def start_job(self,count,ob):
         c = zerorpc.Client()
-        c.connect("tcp://127.0.0.1:"+str(count))
+        c.connect("tcp://"+LOCALHOST+":"+str(count))
         ttt = c.hello(ob)
         return ttt
 
     def start_job_fail_test(self,count,ob):
         c = zerorpc.Client()
-        c.connect("tcp://127.0.0.1:"+str(count))
+        c.connect("tcp://"+LOCALHOST+":"+str(count))
         ttt = c.hello_with_failure(ob)
         return ttt
 
 
     def start_server(self,m):
         s = zerorpc.Server(m)
-        s.bind("tcp://127.0.0.1:4241")
+        s.bind("tcp://"+LOCALHOST+":4241")
         s.run()
     def start_worker(self,port):
         #if port != 4247:
@@ -97,7 +97,7 @@ class WorkerQueue(object):
 
     def create_connection(self,value):
         c = zerorpc.Client(timeout=5)
-        c.connect("tcp://127.0.0.1:" + str(value))
+        c.connect("tcp://"+LOCALHOST+":" + str(value))
         return c
 
 

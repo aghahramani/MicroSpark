@@ -1,5 +1,7 @@
 #!/bin/bash
-
+killall -9 worker.py
+killall -9 driver.py
+killall -9 python2.7
 echo test1 : Word count sort
 echo spark run time
 time ./driver.py > res_spark.txt
