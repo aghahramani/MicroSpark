@@ -51,21 +51,25 @@ class EC2MicroSparkNode(object):
 
     def wait_for_vm_to_be_ready(self):
         done=False
+        pending=False
         while (done==False):
             done=True
             i=self.instance
             if (i.state=='pending'):
                 p("Status","Waiting for Node to Come Up, Usually takes about 15 seconds");
                 gevent.sleep(5)
+                pending=True
                 i.update()
                 done=False
             elif (i.state=='running'):
                 p("Status","Node is up")
+                if pending:
+                    #Sometimes these take a while to come up
+                    gevent.sleep(30)
                 break
             else:
                 raise "Invalid Status "+i.status
-        gevent.sleep(30)
-        self.bootstrap()
+            self.bootstrap()
 
     def create_ssh(self):
         ssh = paramiko.SSHClient()
@@ -152,7 +156,11 @@ class EC2Worker(WorkerQueue):
             self.vms.append(vm)
 
         #p("VMS",self.vms)
-        vmpick=0 # this doesn't work yet # port%len(self.vms)
+        # this doesn't work yet #
+        vmpick= port%len(self.vms)
+        #Setting it to one machine or another works though
+        #vmpick=0
+        #vmpick=1
         self.vms[vmpick].start_worker(port)
         self.portmap[port]=self.vms[vmpick].url(port)
         return port
@@ -178,6 +186,7 @@ class EC2WorkerManager(object):
         self.keys={}
         self.workers=[]
         self.worker_number=0
+#Uncomment to redeploy
 #        self.delete_files_in_s3();
         self.copy_deployment_to_s3()
 

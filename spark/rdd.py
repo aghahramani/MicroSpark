@@ -19,7 +19,6 @@ class RDD(object):
 
     def connect_master(self,value):
         c = zerorpc.Client()
-        print "Connect Master "+RDD.master
         c.connect("tcp://"+RDD.master+":4241")
         c.add_failed_nodes(value)
         c.close()
