@@ -66,10 +66,10 @@ class EC2MicroSparkNode(object):
                 if pending:
                     #Sometimes these take a while to come up
                     gevent.sleep(30)
+                    self.bootstrap()
                 break
             else:
                 raise "Invalid Status "+i.status
-            self.bootstrap()
 
     def create_ssh(self):
         ssh = paramiko.SSHClient()
