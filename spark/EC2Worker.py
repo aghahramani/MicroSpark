@@ -111,8 +111,8 @@ class EC2MicroSparkNode(object):
         scp.close()
         cmd = "cd microspark/spark; python ./Bootstrap.py "+FILES_BUCKET
         self.exec_ssh_command(cmd)
-        cmd = "killall -9 python"
-        self.exec_ssh_command(cmd)
+#        cmd = "killall -9 python"
+#        self.exec_ssh_command(cmd)
 
     def url(self,port):
         return "tcp://"+self.ip+":"+str(port)
