@@ -84,7 +84,7 @@ if __name__ == '__main__':
     parse.add_argument("--master")
     args=parse.parse_args()
     if (args.master):
-        rdd.master=args.master
+        rdd.RDD.master=args.master
 
     s = zerorpc.Server(Worker())
     s.bind("tcp://0.0.0.0:"+ str(args.port))
