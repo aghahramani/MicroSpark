@@ -6,7 +6,7 @@ import cloudpickle
 
 #In case we want to plot we just change these
 Graph = False
-Time = 0.001
+Time = 0.01
 Timeout = 10
 
 #Hack for dealing with ip+port when remote and port when local
@@ -28,10 +28,10 @@ class RDD(object):
         c.add_failed_nodes(value)
         c.close()
 
-    def connect_plotter(self,s,t,height_s,height_t): # source, target , height
+    def connect_plotter(self,s,t,height_s,height_t,saved): # source, target , height
         c = zerorpc.Client()
         c.connect("tcp://0.0.0.0:4240")
-        c.plot_graph(s,t,height_s,height_t,self.name)
+        c.plot_graph(s,t,height_s,height_t,self.name,saved)
         c.close()
 
     def __init__(self):
@@ -171,7 +171,7 @@ class RDD(object):
                     continue
                 self.get_connection(i)
                 if Graph:
-                    self.connect_plotter(self.get_id(),i,self.height,self.height)
+                    self.connect_plotter(self.get_id(),i,self.parent.height,self.parent.height,False)
                 geven_lis.append(gevent.spawn(self.c.get_data,[self.get_id(),turn],self.height,ser_hash,
                                                   fetch_all,forced))
                 potential_fail.append(i)
@@ -250,7 +250,7 @@ class Sample(RDD):
         self.name = 'Sample'
 
     def iterator(self):
-        if self.parent.height != 0 :
+        if self.parent.height == 0 :
             self.parent.height = self.height +1
         self.calculate_narrow()
         if len(self.data) > 0 and self.status =='Done':
@@ -263,7 +263,8 @@ class Sample(RDD):
         for i in self.data_wide:
             yield  i
         if Graph:
-                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height)
+                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height,
+                                     True if self.data else False)
 
 class Join(RDD):
 
@@ -300,7 +301,8 @@ class Join(RDD):
         for i in self.data_wide:
             yield i
         if Graph:
-                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height)
+                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height,
+                                     True if self.data else False)
 
 
 class Sort(RDD):
@@ -321,7 +323,7 @@ class Sort(RDD):
 
     def iterator(self):
 
-        self.parent.height = self.height +1
+        self.parent.height = self.height +.5
         if self.data_wide == None :
             s_sample = Sample(self.parent,size = 5)
             temp_parent = self.parent
@@ -354,8 +356,10 @@ class Sort(RDD):
             self.data_wide = sorted(self.data_wide, reverse = self.reverse)
         for i in self.data_wide:
             yield i
-        if Graph:
-                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height)
+        # if Graph:
+        #         self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height,
+        #                              True if self.data else False)
+
 
 
 
@@ -406,7 +410,8 @@ class GroupByKey(RDD):
             if len (i) > 0  :
                 yield i
         if Graph:
-                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height)
+                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height,
+                                     True if self.data else False)
 
 
 
@@ -467,6 +472,8 @@ class TextFile(RDD):
         for line in self.data:
             yield line
 
+
+
 class FlatMap(RDD):
 
     def __init__(self, parent, func):
@@ -503,7 +510,8 @@ class FlatMap(RDD):
             for _ in self.data:
                 yield _
         if Graph:
-                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height)
+                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height,
+                                     True if self.data else False )
 
 
 class Union(RDD):
@@ -535,7 +543,8 @@ class Union(RDD):
             for _ in self.data:
                 yield _
         if Graph:
-                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height)
+                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height,
+                                     True if self.data else False)
 
 
 
@@ -568,7 +577,8 @@ class Map(RDD):
             for _ in self.data:
                 yield _
         if Graph:
-                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height)
+                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height,
+                                     True if self.data else False)
 
 class Filter(RDD):
     
@@ -597,7 +607,8 @@ class Filter(RDD):
                 yield _
 
         if Graph:
-                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height)
+                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height,
+                                     True if self.data else False)
 
 
 
