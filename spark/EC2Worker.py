@@ -44,7 +44,7 @@ class EC2MicroSparkNode(object):
 
     def __init__(self,instance):
         self.instance=instance
-        self.ip=instance.ip_address
+        self.ip=instance.private_ip_address
         self.wait_for_vm_to_be_ready()
         self.ports=[]
 
@@ -63,6 +63,7 @@ class EC2MicroSparkNode(object):
                 break
             else:
                 raise "Invalid Status "+i.status
+        gevent.sleep(5)
         self.bootstrap()
 
     def create_ssh(self):
@@ -110,7 +111,7 @@ class EC2MicroSparkNode(object):
     def start_worker(self,port):
         self.ports.append(port)
         p("Starting Worker",self.url(port))
-        cmd = "cd microspark/spark; nohup python ./worker.py  "+str(port)+" --ec2 2>&1> log-"+str(port)+".log &"
+        cmd = "cd microspark/spark; sh run_worker.sh "+str(port)+"&"
         self.exec_ssh_command(cmd)
 
 
@@ -121,7 +122,7 @@ class EC2Worker(WorkerQueue):
             raise Exception("Don't put more than 2 workers because this gets expensive")
         self.manager=EC2WorkerManager()
         self.vms=[ EC2MicroSparkNode(n) for n in self.manager.list_workers()]
-        if (len(self.vms)>num_workers):
+        if (len(self.vms)>num_workers+1):
             # We wil have to restart nodes but need to Prevent Spending Too Much Money By Accident
             self.manager.shutdown_all_workers()
             self.vms=[]

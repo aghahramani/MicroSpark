@@ -14,11 +14,13 @@ def get_port(s):
 #!/usr/bin/python
 class RDD(object):
 
+    master= "127.0.0.1"
     wd = []
 
     def connect_master(self,value):
         c = zerorpc.Client()
-        c.connect("tcp://127.0.0.1:4241")
+        print "Connect Master "+RDD.master
+        c.connect("tcp://"+RDD.master+":4241")
         c.add_failed_nodes(value)
         c.close()
 

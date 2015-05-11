@@ -346,8 +346,16 @@ if __name__ == '__main__':
 
     # Run on EC2 Node
     parse.add_argument("--ec2", action="store_true")
+    parse.add_argument("--master")
+
 
     args=parse.parse_args()
+    if (args.ec2 and not(args.master)):
+        print "Must specify master ip address if ec2 mode is active"
+        exit()
+    if (args.master):
+        RDD.master=args.master
+
     #zero_rpc_exception_throw_test()
     if args.fail:
         failure_test(ec2=args.ec2)
