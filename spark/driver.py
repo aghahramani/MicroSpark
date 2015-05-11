@@ -212,6 +212,12 @@ class Parallel(object):
         pickler.dump(obj)
         return output.getvalue()
 
+    def connect_plotter(self):
+        c = zerorpc.Client()
+        c.connect("tcp://0.0.0.0:4240")
+        c.done()
+        c.close()
+
 
 
 def join_sort_test(ec2=False):
@@ -241,6 +247,37 @@ def join_sort_test(ec2=False):
          for j in i :
              print j[0], j[1]
 
+
+
+
+def plot_test():
+    wq = WorkerQueue()
+    p = Parallel(wq)
+    s = p.textFile('./Data_t')
+    s = p.map(s,lambda x : x.split())
+    s = p.flatmap(s, lambda x : [x , '1'])
+    s = p.groupbykey(s)
+    p1 = Parallel(wq)
+    s1 = p1.textFile('./Data_t1')
+    s1 = p1.map(s1,lambda x : x.split())
+    s1 = p1.flatmap(s1, lambda x : [x , '1'])
+    s1 = p.groupbykey(s1)
+    s = p.join(p1,s1,s)
+    p2 = Parallel(wq)
+    s2 = p2.textFile('./Data_t2')
+    s2 = p2.map(s2,lambda x : x.split())
+    s2 = p2.flatmap(s2, lambda x : [x , '1'])
+    s = p.groupbykey(s)
+    s = p.join(p2,s2,s)
+    #s = p.groupbykey(s)
+    s = p.map(s, lambda x : [x[0] , sum(map(int,x[1]))])
+    s = p.sort(s)
+    s = p.execute(s)
+    for i in s :
+         for j in i :
+             print j[0], j[1]
+
+    p.connect_plotter()
 
 
 def height_test():
@@ -351,6 +388,7 @@ if __name__ == '__main__':
     parse.add_argument("--nofail", action="store_true")
     parse.add_argument("--pagerank",action="store_true")
     parse.add_argument("--htest",action="store_true")
+    parse.add_argument("--plot",action='store_true')
 
     # Run on EC2 Node
     parse.add_argument("--ec2", action="store_true")
@@ -358,6 +396,8 @@ if __name__ == '__main__':
 
 
     args=parse.parse_args()
+
+
     if (args.ec2 and not(args.master)):
         print "Must specify master ip address if ec2 mode is active"
         exit()
@@ -375,6 +415,9 @@ if __name__ == '__main__':
         url_rank_test()
     elif args.htest:
         height_test()
+    elif args.plot:
+        system('python ./graph/plotter.py &')
+        plot_test()
     else:
         join_sort_test(ec2=args.ec2)
 

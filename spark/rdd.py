@@ -3,7 +3,11 @@ import gevent
 import numpy.random as rand
 import StringIO
 import cloudpickle
-import sys
+
+#In case we want to plot we just change these
+Graph = True
+Time = 0.001
+Timeout = 10
 
 #Hack for dealing with ip+port when remote and port when local
 def get_port(s):
@@ -24,6 +28,11 @@ class RDD(object):
         c.add_failed_nodes(value)
         c.close()
 
+    def connect_plotter(self,s,t,height_s,height_t): # source, target , height
+        c = zerorpc.Client()
+        c.connect("tcp://0.0.0.0:4240")
+        c.plot_graph(s,t,height_s,height_t,self.name)
+        c.close()
 
     def __init__(self):
         self.id = None
@@ -126,7 +135,7 @@ class RDD(object):
 
     def wide_iter(self):
         while self.data == None:
-            gevent.sleep(0.01)
+            gevent.sleep(Time)
             yield None
         for i in self.data:
             yield i
@@ -153,7 +162,7 @@ class RDD(object):
         if self.data_wide == None:
             self.data_wide = 'setting'
             if self.c == None:
-                self.c = zerorpc.Client(timeout=3)
+                self.c = zerorpc.Client(timeout=Timeout)
 
             fetched_data = []
             geven_lis = []
@@ -161,6 +170,8 @@ class RDD(object):
                 if i == self.get_id():
                     continue
                 self.get_connection(i)
+                if Graph:
+                    self.connect_plotter(self.get_id(),i,self.height,self.height)
                 geven_lis.append(gevent.spawn(self.c.get_data,[self.get_id(),turn],self.height,ser_hash,
                                                   fetch_all,forced))
                 potential_fail.append(i)
@@ -183,7 +194,7 @@ class RDD(object):
                 fetched_data.extend(i.value)
             while len(failed_list) != 0 :
                 self.connect_master([i for i in failed_list])
-                gevent.sleep(0.01)
+                gevent.sleep(Time)
                 geven_lis = []
                 potential_fail=[]
                 for i in failed_list:
@@ -236,6 +247,7 @@ class Sample(RDD):
         self.c = None
         self.cur_depend = None
         self.wide_count = 0
+        self.name = 'Sample'
 
     def iterator(self):
         if self.parent.height != 0 :
@@ -250,6 +262,8 @@ class Sample(RDD):
         self.fetch_data(fetch_all=True)
         for i in self.data_wide:
             yield  i
+        if Graph:
+                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height)
 
 class Join(RDD):
 
@@ -265,6 +279,7 @@ class Join(RDD):
         self.fetched_count = 0
         self.cur_depend = None
         self.wide_count = 0
+        self.name = 'Join'
 
     def iterator(self):
         self.parent.height = self.height +1
@@ -284,6 +299,8 @@ class Join(RDD):
             self.data_wide = list(temp_data_wide)
         for i in self.data_wide:
             yield i
+        if Graph:
+                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height)
 
 
 class Sort(RDD):
@@ -300,6 +317,7 @@ class Sort(RDD):
         self.fetched_count = 0
         self.cur_depend = None
         self.wide_count = 0
+        self.name = 'Sort'
 
     def iterator(self):
 
@@ -313,7 +331,7 @@ class Sort(RDD):
             for i in s_sample.iterator():
                 sample_data.append(i)
             while(self.parent.wide_count != (len(self.get_dependencies())-1)):
-                gevent.sleep(0.001)
+                gevent.sleep(Time)
             # I am not sure if we need this while loop. DO NOT DELETE IT YET
             self.parent = temp_parent
             self.calculate_narrow()
@@ -336,6 +354,8 @@ class Sort(RDD):
             self.data_wide = sorted(self.data_wide, reverse = self.reverse)
         for i in self.data_wide:
             yield i
+        if Graph:
+                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height)
 
 
 
@@ -356,6 +376,7 @@ class GroupByKey(RDD):
         self.fetched_count = 0
         self.cur_depend = None
         self.wide_count = 0
+        self.name = 'GroupByKey'
 
 
 
@@ -379,11 +400,13 @@ class GroupByKey(RDD):
                 temp_data_wide.append([k,v])
             self.data_wide = list(temp_data_wide)
         while self.data_wide == 'setting':
-            gevent.sleep(0.001)
+            gevent.sleep(Time)
             yield []
         for i in self.data_wide :
             if len (i) > 0  :
                 yield i
+        if Graph:
+                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height)
 
 
 
@@ -403,6 +426,7 @@ class TextFile(RDD):
         self.status = None
         self.fetched_count = 0
         self.cur_depend = None
+        self.name = 'TextFile'
 
     def set_dependencies(self,depend_list):
         super(TextFile,self).set_cur_dependencies(depend_list)
@@ -455,6 +479,7 @@ class FlatMap(RDD):
         self.status = None
         self.fetched_count = 0
         self.cur_depend = None
+        self.name = 'FlatMap'
 
 
 
@@ -477,6 +502,8 @@ class FlatMap(RDD):
         else:
             for _ in self.data:
                 yield _
+        if Graph:
+                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height)
 
 
 class Union(RDD):
@@ -491,6 +518,7 @@ class Union(RDD):
         self.status = None
         self.fetched_count = 0
         self.cur_depend = None
+        self.name = 'Union'
 
     def iterator(self):
         self.parent.height = self.height +1
@@ -506,6 +534,8 @@ class Union(RDD):
         else:
             for _ in self.data:
                 yield _
+        if Graph:
+                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height)
 
 
 
@@ -522,10 +552,12 @@ class Map(RDD):
         self.status = None
         self.fetched_count = 0
         self.cur_depend = None
+        self.name = 'Map'
 
 
     def iterator(self):
         self.parent.height = self.height +1
+
         if (len(self.data) == 0 or not self.persist):
             for elem in self.parent.iterator():
                 _ = self.func(elem)
@@ -535,6 +567,8 @@ class Map(RDD):
         else:
             for _ in self.data:
                 yield _
+        if Graph:
+                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height)
 
 class Filter(RDD):
     
@@ -548,6 +582,7 @@ class Filter(RDD):
         self.status = None
         self.fetched_count = 0
         self.cur_depend = None
+        self.name = 'Filter'
 
     def iterator(self):
         self.parent.height = self.height +1
@@ -560,6 +595,9 @@ class Filter(RDD):
         else:
             for _ in self.data:
                 yield _
+
+        if Graph:
+                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height)
 
 
 
