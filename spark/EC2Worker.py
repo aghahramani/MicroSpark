@@ -166,7 +166,9 @@ class EC2Worker(WorkerQueue):
         #vmpick=0
         #vmpick=1
         self.vms[vmpick].start_worker(port)
-        self.portmap[port]=self.vms[vmpick].url(port)
+        url = self.vms[vmpick].url(port)
+        self.portmap[port]=url
+        rdd.RDD.port_to_url[port]=url
         return port
 
 
@@ -191,7 +193,7 @@ class EC2WorkerManager(object):
         self.workers=[]
         self.worker_number=0
 #Uncomment to redeploy
-#        self.delete_files_in_s3();
+        self.delete_files_in_s3();
         self.copy_deployment_to_s3()
 
 

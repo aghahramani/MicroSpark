@@ -16,6 +16,7 @@ class RDD(object):
 
     master= "127.0.0.1"
     wd = []
+    port_to_url={}
 
     def connect_master(self,value):
         c = zerorpc.Client()
@@ -74,8 +75,8 @@ class RDD(object):
         pass
 
     def get_connection(self,port):
-        if (str(port).startswith("tcp")):
-            self.c.connect(str(port))
+        if len(RDD.port_to_url)>0:
+            self.c.connect(RDD.port_to_url[port])
         else:
             self.c.connect("tcp://127.0.0.1:"+str(port))
 
