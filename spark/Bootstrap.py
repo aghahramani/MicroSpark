@@ -8,6 +8,7 @@ python Bootstrap.py <s3 bucket> <aws_access> <aws secret> <program> <program arg
 Credentials should be in the ~/.aws/credentials directory on that machine
 """
 from os import system
+import os
 import boto
 import sys
 import socket
@@ -15,27 +16,30 @@ import socket
 
 class Bootstrap(object):
 
-    def __init__(self,bucket,aws_access,aws_secret):
+    def __init__(self,bucket):
         self.bucket=bucket
-        self.aws_access=aws_access
-        self.aws_secret=aws_secret
 
     def copy_files_and_run(self,port):
-        self.s3 = boto.connect_s3(self.aws_access,self.aws_secret)
+        self.s3 = boto.connect_s3()
         bucket=self.s3.get_bucket(self.bucket)
         for key in bucket.list():
+            if (len(os.path.dirname(key.name))>0):
+                print key.name
+                print os.path.dirname(key.name)
+                if (not(os.path.exists(os.path.dirname(key.name)))):
+                    os.mkdir(os.path.dirname(key.name))
             key.get_contents_to_filename(key.name)
-        system("./worker.py --ec2 " +str(port) + " &" )
         print(socket.gethostname(),socket.dom)
 
 def usage():
-    print "Usage: "+"Bootstrap.py <s3 bucket> <aws_access> <aws secret> <port>"
+    print "Usage: "+"Bootstrap.py <s3 bucket> <port>"
 
 
 if __name__ == '__main__':
-    if (len(sys.argv)<4):
+    print "v.01 args were "+str(sys.argv)
+    if (len(sys.argv)<2):
         usage()
         exit()
 
-    b=Bootstrap(sys.argv[1],sys.argv[2],sys.argv[3])
-    b.copy_files_and_run(sys.argv[4])
+    b=Bootstrap(sys.argv[1])
+    b.copy_files_and_run(sys.argv[2])

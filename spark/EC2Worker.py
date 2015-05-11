@@ -8,7 +8,7 @@ pip install boto
 pip install zerorpc
 pip install numpy
 pip install paramiko
-
+pip install scp
 More info here : http://aws.amazon.com/sdk-for-python/
 
 Your access credentials should be in ~/.aws/credentials
@@ -25,9 +25,12 @@ from os import listdir
 from os.path import isfile, join
 import gevent
 import paramiko
+import select
 from driver import WorkerQueue
 import zerorpc
+from scp import SCPClient
 
+KEY_FILE = "microspark.pem"
 REGION_NAME = "us-east-1"
 SUBNET_ID = "subnet-600b3f5a" #us east 1 c,
 IMAGE_ID = 'ami-0c372164'
@@ -59,6 +62,40 @@ class EC2MicroSparkNode(object):
                 break
             else:
                 raise "Invalid Status "+i.status
+        self.bootstrap()
+
+    def create_ssh(self):
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        k = open(KEY_FILE, "r")
+        mykey = paramiko.RSAKey.from_private_key(k)
+        k.close()
+        ssh.connect(self.ip, username="ubuntu", pkey=mykey)
+        return ssh
+
+    def exec_ssh_command(self, cmd):
+        stdin, stdout, stderr = self.ssh.exec_command(cmd);
+        while not stdout.channel.exit_status_ready():
+            if stdout.channel.recv_ready():
+                rl, wl, xl = select.select([stdout.channel], [], [], 0.0)
+                if len(rl) > 0:
+                    print stdout.channel.recv(1024),
+
+    def bootstrap(self):
+        """ Copy credentials and Bootstrap.py to server and call Bootstrap.py to download deployment bucket """
+        p("Bootstrap",self.ip)
+        self.ssh = self.create_ssh()
+
+        scp = SCPClient(self.ssh.get_transport())
+        scp.put("microspark-aws-credentials","/home/ubuntu/.aws/credentials")
+        scp.close()
+        scp = SCPClient(self.ssh.get_transport())
+        scp.put("Bootstrap.py","/home/ubuntu/microspark/spark/Bootstrap.py")
+        scp.close()
+        cmd = "cd microspark/spark; python ./Bootstrap.py "+FILES_BUCKET
+        self.exec_ssh_command(cmd)
+        cmd = "killall -9 python"
+        self.exec_ssh_command(cmd)
 
     def url(self,port):
         return "tcp://"+self.ip+":"+str(port)
@@ -66,7 +103,8 @@ class EC2MicroSparkNode(object):
     def start_worker(self,port):
         self.ports.append(port)
         p("Starting Worker",self.url(port))
-        pass
+        cmd = "cd microspark/spark; nohup python ./worker.py --ec2 "+str(port)+" &"
+        self.exec_ssh_command(cmd)
 
 
 class EC2Worker(WorkerQueue):
@@ -80,7 +118,7 @@ class EC2Worker(WorkerQueue):
             # We wil have to restart nodes but need to Prevent Spending Too Much Money By Accident
             self.manager.shutdown_all_workers()
             self.vms=[]
-        super(EC2Worker,self).__init__()
+        super(EC2Worker,self).__init__(n=5)
 
     def ec2_instance_ip(self,num):
         return "127.0.0.1"
@@ -108,8 +146,8 @@ class EC2Worker(WorkerQueue):
 
     def start_worker(self,port):
         if (len(self.vms)==0):
+            self.manager.auto_deploy_server(FILES_BUCKET)
             vm=EC2MicroSparkNode(self.manager.start_worker());
-            self.manager.copy_all_files_from_s3(FILES_BUCKET)
             p("Started vm",vm)
             self.vms.append(vm)
 
@@ -119,7 +157,7 @@ class EC2Worker(WorkerQueue):
 
     def get_worker(self):
         if len(self.workers)==0:
-            self.workers.append(self.start_worker(self.init_port+self.n))
+            self.workers.append(self.start_worker(self.init_ip+self.n))
             self.n +=1
         return self.workers.pop(0)
 
@@ -147,16 +185,16 @@ class EC2WorkerManager(object):
         self.keys={}
         self.workers=[]
         self.worker_number=0
+        self.copy_deployment_to_s3()
 
-    def auto_deploy_server(self,data_dir=["Data","Data1"],code_dir=".",program="worker.py"):
-        code_files=[f for f in listdir(code_dir) if isfile(join(dir,f)) and f.endswith("*.py")]
+
+    def copy_deployment_to_s3(self,data_dir=["Data","Data1","Data2"],code_dir=".",program="worker.py"):
+        code_files=[f for f in listdir(code_dir) if isfile(join(code_dir,f)) and f.endswith("py") and not f.endswith("Bootstrap.py")]
+        p("code_files ",code_files)
         for d in data_dir:
-            self.put_dir_in_s3(data_dir)
+            self.put_dir_in_s3(data_dir,FILES_BUCKET)
         for c in code_files:
             self.put_file_in_s3(c)
-        reserve=self.start_worker()
-        self.download_s3_files_on_worker(self.bucket_name)
-        self.start_worker_process()
 
     def start_worker_process(self):
         pass
@@ -165,9 +203,10 @@ class EC2WorkerManager(object):
         pass
 
     def put_dir_in_s3(self,dir,bucket):
-        files=[f for f in listdir(dir) if isfile(join(dir,f))]
-        for f in files:
-            self.put_file_in_s3(f)
+        for d in dir:
+            files=[f for f in listdir(d) if isfile(join(d,f))]
+            for f in files:
+                self.put_file_in_s3(join(d,f))
 
     def put_file_in_s3(self,fn):
         s3f=open(fn,"r")
