@@ -5,7 +5,7 @@ import StringIO
 import cloudpickle
 
 #In case we want to plot we just change these
-Graph = True
+Graph = False
 Time = 0.001
 Timeout = 10
 
