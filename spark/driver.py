@@ -341,9 +341,12 @@ if __name__ == '__main__':
     parse=argparse.ArgumentParser()
     parse.add_argument("--fail", action="store_true")
     parse.add_argument("--nofail", action="store_true")
-    parse.add_argument("--ec2", action="store_true")
     parse.add_argument("--pagerank",action="store_true")
     parse.add_argument("--htest",action="store_true")
+
+    # Run on EC2 Node
+    parse.add_argument("--ec2", action="store_true")
+
     args=parse.parse_args()
     #zero_rpc_exception_throw_test()
     if args.fail:

@@ -146,8 +146,8 @@ class EC2Worker(WorkerQueue):
 
     def start_worker(self,port):
         if (len(self.vms)==0):
-            self.manager.auto_deploy_server(FILES_BUCKET)
-            vm=EC2MicroSparkNode(self.manager.start_worker());
+            self.manager.copy_deployment_to_s3()
+            vm=EC2MicroSparkNode(self.manager.start_worker().instances[0])
             p("Started vm",vm)
             self.vms.append(vm)
 

@@ -67,7 +67,10 @@ class RDD(object):
         pass
 
     def get_connection(self,port):
-        self.c.connect("tcp://127.0.0.1:"+str(port))
+        if (str(port).startswith("tcp")):
+            self.c.connect(str(port))
+        else:
+            self.c.connect("tcp://127.0.0.1:"+str(port))
 
 
     def prefferedLocations(self,p):
