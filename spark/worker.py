@@ -31,7 +31,7 @@ class Worker(object):
 
     def hello_with_failure(self,objstr,port_to_url):
         rdd.RDD.port_to_url=port_to_url
-        if args.port == '4244' or args.port == '4243':
+        if args.port == 4244 or args.port == 4243:
             s.close()
         else:
             input = StringIO.StringIO(objstr)

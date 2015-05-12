@@ -5,9 +5,9 @@ import StringIO
 import cloudpickle
 
 #In case we want to plot we just change these
-Graph = False
+Graph = True
 Time = 0.01
-Timeout = 30
+Timeout = 10
 
 #Hack for dealing with ip+port when remote and port when local
 def get_port(s):

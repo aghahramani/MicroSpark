@@ -28,6 +28,7 @@ class WorkerQueue(object):
         WorkerQueue.g = gevent.spawn(self.start_server,self.m)
         self.gevent_list=[]
         self.n = 20
+        self.s = None
 
     def connect(self,count):
         c = zerorpc.Client(timeout=TIMEOUT)
@@ -49,8 +50,10 @@ class WorkerQueue(object):
 
     def start_server(self,m):
         s = zerorpc.Server(m)
+        self.s = s
         s.bind("tcp://"+LOCALHOST+":4241")
         s.run()
+
 
     def start_worker(self,port):
         #if port != 4247:
@@ -83,7 +86,7 @@ class WorkerQueue(object):
             gevent.joinall(geven_lis)
             for i_index, i in enumerate(geven_lis):
                 if i.value == None:
-                    system("./worker.py " +str(value[i_index]) + " force &" )
+                    system("./worker.py " +str(value[i_index]) +'&' )
                     # g = self.gevent_list[value[i_index]-self.init_ip].start()
                     # self.gevent_list[value[i_index]-self.init_ip] = g
                     # self.gevent_list[value[i_index]-self.init_ip].join()
@@ -193,6 +196,7 @@ class Parallel(object):
         for i_index, i  in enumerate(parent):
             i_obj = self.serialize(i)
             Parallel.para_worker_dict[self.dependencies[i_index]] = i_obj
+
             if self.fail_test:
                 self.gevent_list.append(gevent.spawn(self.wq.start_job_fail_test,self.dependencies[i_index],i_obj))
             else:
@@ -246,6 +250,7 @@ def join_sort_test(ec2=False):
     for i in s :
          for j in i :
              print j[0], j[1]
+
 
 
 
@@ -340,12 +345,14 @@ def failure_test(no_fail=False,ec2=False):
     s = p.flatmap(s, lambda x : [x , '1'])
     s = p.groupbykey(s)
     s = p.map(s, lambda x : [x[0] , sum(map(int,x[1]))])
-    s = p.filter(s,lambda x :  x[1] > 1000)
+    s = p.filter(s,lambda x :  x[1] > 100)
     #s = p.sort(s)
     s = p.execute(s)
     for i in s :
          for j in i :
              print j[0], j[1]
+    wq.s.close()
+
 
 
 
@@ -411,6 +418,7 @@ if __name__ == '__main__':
     parse.add_argument("--htest",action="store_true")
     parse.add_argument("--plot",action='store_true')
     parse.add_argument("--plot_simple",action='store_true')
+    parse.add_argument("--plot_simulate",action = 'store_true')
 
     # Run on EC2 Node
     parse.add_argument("--ec2", action="store_true")
