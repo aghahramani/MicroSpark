@@ -7,7 +7,7 @@ import cloudpickle
 #In case we want to plot we just change these
 Graph = False
 Time = 0.01
-Timeout = 10
+Timeout = 30
 
 #Hack for dealing with ip+port when remote and port when local
 def get_port(s):
@@ -28,16 +28,28 @@ class RDD(object):
         c.add_failed_nodes(value)
         c.close()
 
-    def connect_plotter(self,s,t,height_s,height_t,saved): # source, target , height
-        c = zerorpc.Client()
+    def connect_plotter(self,s,t,height_s,height_t,size): # source, target , height
+        c = zerorpc.Client(timeout=Timeout)
         c.connect("tcp://0.0.0.0:4240")
-        c.plot_graph(s,t,height_s,height_t,self.name,saved)
+        if self.parent != None:
+            if s == t:
+                if type(self.data) == list :
+                    c.plot_graph(s,t,height_s,height_t,self.name,self.parent.name,len(self.data) if self.wide else 0)
+                else:
+                    c.plot_graph(s,t,height_s,height_t,self.name,self.parent.name,size)
+            else:
+                if type(self.data) == list :
+                    c.plot_graph(s,t,height_s,height_t,self.name,self.name,len(self.data) if self.wide else 0)
+                else:
+                    c.plot_graph(s,t,height_s,height_t,self.name,self.name,size)
+
         c.close()
 
     def __init__(self):
         self.id = None
         self.id_range = None
         self.depend = None
+
 
 
     def merge_dependencies(self,p1,p2):
@@ -171,7 +183,7 @@ class RDD(object):
                     continue
                 self.get_connection(i)
                 if Graph:
-                    self.connect_plotter(self.get_id(),i,self.parent.height,self.parent.height,False)
+                    self.connect_plotter(self.get_id(),i,self.height,self.height,False)
                 geven_lis.append(gevent.spawn(self.c.get_data,[self.get_id(),turn],self.height,ser_hash,
                                                   fetch_all,forced))
                 potential_fail.append(i)
@@ -253,6 +265,9 @@ class Sample(RDD):
         if self.parent.height == 0 :
             self.parent.height = self.height +1
         self.calculate_narrow()
+        if Graph:
+                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height,
+                                     len(self.data))
         if len(self.data) > 0 and self.status =='Done':
             if self.size < len(self.data) :
                 indexes = rand.choice(range(len(self.data)),self.size
@@ -264,7 +279,7 @@ class Sample(RDD):
             yield  i
         if Graph:
                 self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height,
-                                     True if self.data else False)
+                                     len(self.data_wide))
 
 class Join(RDD):
 
@@ -286,6 +301,9 @@ class Join(RDD):
         self.parent.height = self.height +1
         if self.data_wide == None:
             self.calculate_narrow()
+            if Graph:
+                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height,
+                                     len(self.data))
             self.fetch_data()
             temp_dict = {}
             for i in self.data_wide :
@@ -302,7 +320,7 @@ class Join(RDD):
             yield i
         if Graph:
                 self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height,
-                                     True if self.data else False)
+                                     len(self.data_wide))
 
 
 class Sort(RDD):
@@ -323,12 +341,12 @@ class Sort(RDD):
 
     def iterator(self):
 
-        self.parent.height = self.height +.5
+        self.parent.height = self.height +1
         if self.data_wide == None :
             s_sample = Sample(self.parent,size = 5)
             temp_parent = self.parent
             self.parent = s_sample
-            self.parent.height = self.height +1
+            self.parent.height = self.height +0.5
             sample_data= []
             for i in s_sample.iterator():
                 sample_data.append(i)
@@ -337,6 +355,9 @@ class Sort(RDD):
             # I am not sure if we need this while loop. DO NOT DELETE IT YET
             self.parent = temp_parent
             self.calculate_narrow()
+            if Graph:
+                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height,
+                                    len(self.data))
             temp_sorted = sorted(sample_data)
             depend_len = len(self.get_dependencies())
             first = self.get_dependencies()[0]
@@ -356,9 +377,10 @@ class Sort(RDD):
             self.data_wide = sorted(self.data_wide, reverse = self.reverse)
         for i in self.data_wide:
             yield i
-        # if Graph:
-        #         self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height,
-        #                              True if self.data else False)
+        if Graph:
+                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height,
+                                     len(self.data_wide))
+
 
 
 
@@ -389,6 +411,9 @@ class GroupByKey(RDD):
         self.parent.height = self.height +1
         if self.data_wide == None:
             self.calculate_narrow()
+            if Graph:
+                self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height,
+                                     len(self.data))
             #print self.get_id()
             #print self.data
             self.fetch_data()
@@ -411,7 +436,7 @@ class GroupByKey(RDD):
                 yield i
         if Graph:
                 self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height,
-                                     True if self.data else False)
+                                     len(self.data_wide))
 
 
 
@@ -432,6 +457,7 @@ class TextFile(RDD):
         self.fetched_count = 0
         self.cur_depend = None
         self.name = 'TextFile'
+        self.parent = None
 
     def set_dependencies(self,depend_list):
         super(TextFile,self).set_cur_dependencies(depend_list)
@@ -511,8 +537,7 @@ class FlatMap(RDD):
                 yield _
         if Graph:
                 self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height,
-                                     True if self.data else False )
-
+                                     len(self.data))
 
 class Union(RDD):
 
@@ -555,7 +580,7 @@ class Map(RDD):
         self.parent = parent
         self.func = func
         self.data = []
-        self.persist = False
+        self.persist = True
         self.wide = False
         self.height = 0
         self.status = None
@@ -578,7 +603,7 @@ class Map(RDD):
                 yield _
         if Graph:
                 self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height,
-                                     True if self.data else False)
+                                     len(self.data))
 
 class Filter(RDD):
     
@@ -608,8 +633,7 @@ class Filter(RDD):
 
         if Graph:
                 self.connect_plotter(self.get_id(),self.get_id(),self.height,self.parent.height,
-                                     True if self.data else False)
-
+                                     len(self.data))
 
 
 if __name__ == '__main__':

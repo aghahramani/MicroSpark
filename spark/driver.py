@@ -13,7 +13,7 @@ from os import system
 from os.path import isfile, join
 import sys
 from gevent import Greenlet
-
+TIMEOUT = 200
 
 LOCALHOST="127.0.0.1"
 
@@ -30,7 +30,7 @@ class WorkerQueue(object):
         self.n = 20
 
     def connect(self,count):
-        c = zerorpc.Client()
+        c = zerorpc.Client(timeout=TIMEOUT)
         c.connect("tcp://"+LOCALHOST+":"+str(count))
         return c
 
@@ -438,10 +438,10 @@ if __name__ == '__main__':
     elif args.htest:
         height_test()
     elif args.plot:
-        system('python ./graph/plotter.py &')
+        system('python ./graph/plotter.py 50 final&')
         plot_test()
     elif args.plot_simple:
-        system('python ./graph/plotter.py &')
+        system('python ./graph/plotter.py 3 final&')
         plot_test_simple()
     else:
         join_sort_test(ec2=args.ec2)
