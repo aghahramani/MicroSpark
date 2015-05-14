@@ -31,7 +31,7 @@ class Worker(object):
 
     def hello_with_failure(self,objstr,port_to_url):
         rdd.RDD.port_to_url=port_to_url
-        if args.port == '4244' or args.port == '4243':
+        if args.port == 4244 or args.port == 4243:
             s.close()
         else:
             input = StringIO.StringIO(objstr)
@@ -55,7 +55,7 @@ class Worker(object):
         temp = []
         while self.f == None : # Reason : When we call hello method on each worker there is a chance that one of the
             #workers not yet initialized but the other worker calls get_data on it. This is why we need this
-            gevent.sleep(0.001)
+            gevent.sleep(rdd.Time)
         #print self.f,self.f.height,len(self.f.get_dependencies()),"-------------------------------"
         #print "Asking from ", port, "I am ",self.f.get_id(), "Height is" , height
         for i in self.f.get_data(height) :
