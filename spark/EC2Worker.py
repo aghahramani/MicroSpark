@@ -31,7 +31,9 @@ from driver import WorkerQueue
 import zerorpc
 from scp import SCPClient
 
-KEY_FILE = "microspark.pem"
+KEY_NAME="microspark-cluster"
+KEY_FILE = "microspark-cluser.pem"
+INSTANCE_TYPE= "t2.micro"
 REGION_NAME = "us-east-1"
 SUBNET_ID = "subnet-600b3f5a" #us east 1 c,
 #IMAGE_ID = 'ami-0c372164'
@@ -67,7 +69,7 @@ class EC2MicroSparkNode(object):
                 if pending:
                     #Sometimes these take a while to come up
                     self.ssh = self.create_ssh()
-                    gevent.sleep(30)
+                    gevent.sleep(60)
                     self.bootstrap()
                     break
             else:
@@ -169,6 +171,7 @@ class EC2Worker(WorkerQueue):
         url = self.vms[vmpick].url(port)
         self.portmap[port]=url
         rdd.RDD.port_to_url[port]=url
+        print "registerd mapping "+str(port)+"->"+url
         return port
 
 
@@ -255,8 +258,8 @@ class EC2WorkerManager(object):
         print "Creating instance with security group ",group
         reserve=self.ec2.run_instances(
             IMAGE_ID,
-            key_name='microspark',
-            instance_type='t2.micro',
+            key_name=KEY_NAME,
+            instance_type=INSTANCE_TYPE,
             subnet_id=SUBNET_ID,
             security_group_ids=[str(group.id)])
 
